@@ -13,6 +13,8 @@ interface RequestOptions {
 }
 
 const REQUEST_TIMEOUT_MS = 15_000;
+/** Cold starts on free hosting take up to about a minute. */
+const WARM_UP_TIMEOUT_MS = 60_000;
 /** Refresh a little early so a request never starts with a token about to expire. */
 const ACCESS_TOKEN_REFRESH_MARGIN_MS = 30_000;
 const MS_PER_SECOND = 1_000;
@@ -136,4 +138,12 @@ function extractMessage(payload: unknown, status: number): string {
     if (Array.isArray(message)) return message.join(', ');
   }
   return `Request failed with status ${status}`;
+}
+
+/**
+ * Fire-and-forget request that wakes the API up (free hosting sleeps when idle),
+ * so it is warm by the time the user reaches a real request.
+ */
+export function warmUpBackend(): void {
+  fetch(`${env.apiUrl}/health`, { signal: AbortSignal.timeout(WARM_UP_TIMEOUT_MS) }).catch(() => undefined);
 }

@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WatchSessionProvider } from '@/features/session/WatchSessionProvider';
 import { ApiError, SessionLostError } from '@/services/api/api-error';
+import { warmUpBackend } from '@/services/api/http-client';
 import { RootNavigator } from './navigation/RootNavigator';
 
 const MAX_QUERY_RETRIES = 2;
@@ -39,6 +40,10 @@ export function App() {
   useEffect(() => {
     if (ready) void SplashScreen.hideAsync();
   }, [ready]);
+
+  useEffect(() => {
+    warmUpBackend();
+  }, []);
 
   // Raising the wrist brings the app to the foreground: refresh payment methods then.
   useEffect(() => {

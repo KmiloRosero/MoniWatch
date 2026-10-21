@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { focusManager, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/features/auth/AuthProvider';
+import { warmUpBackend } from '@/services/api/http-client';
 import { RootNavigator } from './navigation/RootNavigator';
 import { createQueryClient } from './query-client';
 
@@ -20,6 +21,10 @@ export function App() {
   useEffect(() => {
     if (ready) void SplashScreen.hideAsync();
   }, [ready]);
+
+  useEffect(() => {
+    warmUpBackend();
+  }, []);
 
   // Refetch stale queries when the app returns to the foreground.
   useEffect(() => {
