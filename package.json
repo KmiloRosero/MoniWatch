@@ -1,0 +1,17 @@
+{
+  "name": "smartwatch-pay",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Smartwatch payments with Nequi and Wompi: NestJS backend, Expo companion app and Wear OS app",
+  "scripts": {
+    "install:all": "npm --prefix apps/backend install && npm --prefix apps/mobile install && npm --prefix apps/watch/wearos install",
+    "backend:db": "npm --prefix apps/backend run prisma:deploy",
+    "backend:dev": "npm --prefix apps/backend run start:dev",
+    "backend:test": "npm --prefix apps/backend run test:e2e",
+    "mobile:start": "npm --prefix apps/mobile start",
+    "watch:start": "npm --prefix apps/watch/wearos start",
+    "watch:android": "npm --prefix apps/watch/wearos run android",
+    "typecheck": "npm --prefix apps/backend run typecheck && npm --prefix apps/mobile run typecheck && npm --prefix apps/watch/wearos run typecheck",
+    "verify": "npm run typecheck && npm run backend:test"
+  }
+}

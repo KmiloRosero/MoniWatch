@@ -1,0 +1,416 @@
+// =============================================================================
+// Smartwatch Pay - Prisma Schema
+// Database: SQLite (enums and Json supported since Prisma 6.2)
+// Monetary amounts are stored as integers in minor units (cents) to avoid
+// floating point errors. Sensitive provider tokens are stored encrypted
+// (AES-256-GCM envelope encryption); plaintext never touches the database.
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------------------------
+// Enums
+// -----------------------------------------------------------------------------
+
+enum UserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+enum DocumentType {
+  CC  // Cedula de ciudadania
+  CE  // Cedula de extranjeria
+  NIT
+  PP  // Passport
+  TI  // Tarjeta de identidad
+}
+
+enum PaymentProvider {
+  NEQUI
+  WOMPI
+}
+
+enum PaymentMethodType {
+  WALLET        // e.g. Nequi wallet (phone-based)
+  CARD          // Wompi tokenized card
+  BANK_TRANSFER // Wompi PSE / Bancolombia transfer
+}
+
+enum PaymentMethodStatus {
+  PENDING_VALIDATION
+  ACTIVE
+  EXPIRED
+  REVOKED
+  FAILED_VALIDATION
+}
+
+enum Currency {
+  COP
+  USD
+}
+
+enum TransactionStatus {
+  PENDING
+  PROCESSING
+  APPROVED
+  DECLINED
+  FAILED
+  VOIDED
+  EXPIRED
+  REFUNDED
+}
+
+enum TransactionChannel {
+  WATCH
+  MOBILE
+  WEB
+}
+
+enum DevicePlatform {
+  WEAR_OS
+  WATCH_OS
+}
+
+enum DeviceSessionStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+enum DevicePairingStatus {
+  PENDING  // Code shown on the watch, waiting for the user to enter it on the phone
+  APPROVED // Approved on the phone, waiting for the watch to collect its tokens
+  CONSUMED // Tokens delivered to the watch
+  EXPIRED
+}
+
+enum MerchantStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum WebhookProcessingStatus {
+  RECEIVED
+  PROCESSED
+  IGNORED
+  FAILED
+}
+
+// -----------------------------------------------------------------------------
+// User
+// -----------------------------------------------------------------------------
+
+model User {
+  id                String       @id @default(uuid())
+  email             String       @unique
+  phoneNumber       String       @unique // E.164 format, required by Nequi
+  passwordHash      String
+  firstName         String
+  lastName          String
+  documentType      DocumentType
+  documentNumber    String
+  status            UserStatus   @default(PENDING_VERIFICATION)
+
+  // Payment PIN used to confirm payments from the watch
+  paymentPinHash    String?
+  failedPinAttempts Int          @default(0)
+  pinLockedUntil    DateTime?
+
+  emailVerifiedAt   DateTime?
+  phoneVerifiedAt   DateTime?
+  lastLoginAt       DateTime?
+
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  deletedAt         DateTime?    // Soft delete
+
+  paymentMethods    PaymentMethod[]
+  transactions      Transaction[]
+  deviceSessions    DeviceSession[]
+  pairingRequests   DevicePairingRequest[]
+  sessions          UserSession[]
+
+  @@unique([documentType, documentNumber])
+  @@index([status])
+  @@map("users")
+}
+
+// -----------------------------------------------------------------------------
+// UserSession (mobile app login; refresh tokens rotate on every use)
+// -----------------------------------------------------------------------------
+
+model UserSession {
+  id               String    @id @default(uuid())
+  userId           String
+  refreshTokenHash String    @unique // Only the hash is stored
+  expiresAt        DateTime
+  lastUsedAt       DateTime?
+  revokedAt        DateTime?
+  userAgent        String?
+  ipAddress        String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@map("user_sessions")
+}
+
+// -----------------------------------------------------------------------------
+// PaymentMethod
+// -----------------------------------------------------------------------------
+
+model PaymentMethod {
+  id                 String              @id @default(uuid())
+  userId             String
+  provider           PaymentProvider
+  type               PaymentMethodType
+  status             PaymentMethodStatus @default(PENDING_VALIDATION)
+  alias              String?             // User-defined label, e.g. "My Nequi"
+  isDefault          Boolean             @default(false)
+
+  // Non-sensitive display data (safe to render on the watch)
+  displayLabel       String              // e.g. "Nequi ****4321" / "VISA ****1111"
+  last4              String?
+  cardBrand          String?
+  cardExpMonth       Int?
+  cardExpYear        Int?
+  maskedPhoneNumber  String?
+
+  // Encrypted provider token (AES-256-GCM)
+  encryptedToken     String              // Base64 ciphertext
+  tokenIv            String              // Base64 initialization vector
+  tokenAuthTag       String              // Base64 GCM authentication tag
+  encryptionKeyId    String              // Key identifier/version for rotation
+  tokenFingerprint   String              // HMAC-SHA256 of the token, used for dedup
+  tokenExpiresAt     DateTime?
+
+  // Provider-side references (e.g. Wompi payment_source_id, Nequi subscription id)
+  providerSourceId   String?
+  providerCustomerId String?
+  providerMetadata   Json?
+
+  lastUsedAt         DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  revokedAt          DateTime?
+
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions       Transaction[]
+
+  @@unique([userId, provider, tokenFingerprint])
+  @@index([userId, status])
+  @@index([provider, providerSourceId])
+  @@map("payment_methods")
+}
+
+// -----------------------------------------------------------------------------
+// Merchant (payee of a transaction)
+// -----------------------------------------------------------------------------
+
+model Merchant {
+  id                 String         @id @default(uuid())
+  name               String
+  legalName          String?
+  taxId              String?        @unique // NIT
+  category           String?
+  status             MerchantStatus @default(ACTIVE)
+  providerMerchantId String?        // Merchant identifier at the payment provider
+  logoUrl            String?
+
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  transactions       Transaction[]
+
+  @@index([status])
+  @@map("merchants")
+}
+
+// -----------------------------------------------------------------------------
+// Transaction
+// -----------------------------------------------------------------------------
+
+model Transaction {
+  id                    String             @id @default(uuid())
+  reference             String             @unique // Internal reference sent to the provider
+  idempotencyKey        String             // Client-generated, prevents double charges
+
+  userId                String
+  paymentMethodId       String
+  merchantId            String?
+  deviceSessionId       String?            // Set when initiated from the watch
+
+  provider              PaymentProvider
+  channel               TransactionChannel
+  status                TransactionStatus  @default(PENDING)
+
+  amountInCents         Int
+  feeInCents            Int                @default(0)
+  currency              Currency
+  description           String?
+
+  // Provider response data
+  providerTransactionId String?
+  providerStatus        String?            // Raw status string returned by the provider
+  providerResponse      Json?
+  failureCode           String?
+  failureReason         String?
+
+  // Lifecycle timestamps
+  expiresAt             DateTime?
+  processedAt           DateTime?
+  approvedAt            DateTime?
+  failedAt              DateTime?
+  refundedAt            DateTime?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  user                  User               @relation(fields: [userId], references: [id], onDelete: Restrict)
+  paymentMethod         PaymentMethod      @relation(fields: [paymentMethodId], references: [id], onDelete: Restrict)
+  merchant              Merchant?          @relation(fields: [merchantId], references: [id], onDelete: SetNull)
+  deviceSession         DeviceSession?     @relation(fields: [deviceSessionId], references: [id], onDelete: SetNull)
+  statusHistory         TransactionStatusHistory[]
+  webhookEvents         WebhookEvent[]
+
+  @@unique([userId, idempotencyKey])
+  @@unique([provider, providerTransactionId])
+  @@index([userId, createdAt])
+  @@index([status])
+  @@index([deviceSessionId])
+  @@map("transactions")
+}
+
+model TransactionStatusHistory {
+  id             String             @id @default(uuid())
+  transactionId  String
+  fromStatus     TransactionStatus?
+  toStatus       TransactionStatus
+  reason         String?
+  source         String             // e.g. "API", "WEBHOOK", "RECONCILIATION_JOB"
+  metadata       Json?
+  createdAt      DateTime           @default(now())
+
+  transaction    Transaction        @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@index([transactionId, createdAt])
+  @@map("transaction_status_history")
+}
+
+// -----------------------------------------------------------------------------
+// DeviceSession (watch pairing and authentication)
+// -----------------------------------------------------------------------------
+
+model DeviceSession {
+  id                        String              @id @default(uuid())
+  userId                    String
+  platform                  DevicePlatform
+  status                    DeviceSessionStatus @default(ACTIVE)
+
+  // Device identity
+  deviceId                  String              // Stable hardware/install identifier
+  deviceName                String?
+  deviceModel               String?
+  osVersion                 String?
+  appVersion                String?
+  devicePublicKey           String?             // Used to verify signed payment requests
+
+  pairedAt                  DateTime?
+
+  // Session tokens (only hashes are stored)
+  refreshTokenHash          String?             @unique
+  refreshTokenExpiresAt     DateTime?
+
+  // Watch-specific spending controls (null = use user/global policy)
+  maxAmountPerTransaction   Int?
+  dailyLimitInCents         Int?
+  requirePinAboveInCents    Int?
+  defaultPaymentMethodId    String?
+
+  lastSeenAt                DateTime?
+  lastIpAddress             String?
+  revokedAt                 DateTime?
+  revokedReason             String?
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
+
+  user                      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions              Transaction[]
+  pairingRequests           DevicePairingRequest[]
+
+  @@unique([userId, deviceId])
+  @@index([userId, status])
+  @@map("device_sessions")
+}
+
+// -----------------------------------------------------------------------------
+// DevicePairingRequest (device authorization flow for the watch)
+// 1. Watch creates a request and shows the short user code.
+// 2. User types the code in the phone app (authenticated) to approve it.
+// 3. Watch polls with its secret device code and receives its tokens once.
+// -----------------------------------------------------------------------------
+
+model DevicePairingRequest {
+  id              String              @id @default(uuid())
+  status          DevicePairingStatus @default(PENDING)
+  userCodeHash    String              @unique // Short code shown on the watch (hash only)
+  deviceCodeHash  String              @unique // Secret kept by the watch for polling (hash only)
+
+  platform        DevicePlatform
+  deviceId        String
+  deviceName      String?
+  deviceModel     String?
+  osVersion       String?
+  appVersion      String?
+  devicePublicKey String?
+
+  userId          String?             // Set on approval
+  deviceSessionId String?             // Set when the tokens are issued
+
+  expiresAt       DateTime
+  lastPolledAt    DateTime?
+  approvedAt      DateTime?
+  consumedAt      DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  user            User?               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceSession   DeviceSession?      @relation(fields: [deviceSessionId], references: [id], onDelete: SetNull)
+
+  @@index([status, expiresAt])
+  @@map("device_pairing_requests")
+}
+
+// -----------------------------------------------------------------------------
+// WebhookEvent (inbound notifications from Nequi / Wompi)
+// -----------------------------------------------------------------------------
+
+model WebhookEvent {
+  id               String                  @id @default(uuid())
+  provider         PaymentProvider
+  providerEventId  String
+  eventType        String
+  signatureValid   Boolean
+  payload          Json
+  processingStatus WebhookProcessingStatus @default(RECEIVED)
+  processingError  String?
+  transactionId    String?
+  receivedAt       DateTime                @default(now())
+  processedAt      DateTime?
+
+  transaction      Transaction?            @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, providerEventId])
+  @@index([processingStatus])
+  @@map("webhook_events")
+}

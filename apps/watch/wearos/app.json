@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "Smartwatch Pay",
+    "slug": "smartwatch-pay-watch",
+    "scheme": "smartwatchpaywatch",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#000000",
+    "android": {
+      "package": "com.smartwatchpay.watch",
+      "edgeToEdgeEnabled": true
+    },
+    "plugins": [
+      "expo-status-bar",
+      "expo-secure-store",
+      "expo-dev-client",
+      "./plugins/with-wear-os"
+    ]
+  }
+}

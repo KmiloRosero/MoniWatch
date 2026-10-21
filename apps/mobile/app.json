@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "Smartwatch Pay",
+    "slug": "smartwatch-pay",
+    "scheme": "smartwatchpay",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "com.smartwatchpay.mobile",
+      "supportsTablet": false
+    },
+    "android": {
+      "package": "com.smartwatchpay.mobile",
+      "edgeToEdgeEnabled": true
+    },
+    "plugins": [
+      "expo-status-bar",
+      "expo-secure-store"
+    ]
+  }
+}

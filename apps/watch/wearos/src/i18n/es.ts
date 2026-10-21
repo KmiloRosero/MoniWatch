@@ -1,0 +1,83 @@
+import type { PaymentProvider } from '@/services/api/types';
+
+/** Every user-facing string. The watch UI is Spanish-only and written for a 2-second glance. */
+export const copy = {
+  common: {
+    retry: 'Reintentar',
+    back: 'Volver',
+    loading: 'Cargando…',
+  },
+  errors: {
+    network: 'Sin conexión. Revisa el Wi-Fi o el celular.',
+    server: 'El servicio no responde. Intenta en un momento.',
+    generic: 'Algo salió mal. Intenta de nuevo.',
+  },
+  pairing: {
+    preparing: 'Preparando…',
+    title: 'Vincula tu reloj',
+    instruction: 'En tu celular abre Smartwatch Pay y toca “Vincular reloj”.',
+    codeLabel: (code: string) => `Código de vinculación: ${code.split('').join(' ')}`,
+    waiting: 'Esperando confirmación',
+    expiresIn: (time: string) => `Vence en ${time}`,
+    linked: '¡Listo!',
+    expiredTitle: 'El código venció',
+    expiredDescription: 'Genera uno nuevo y escríbelo en tu celular.',
+    newCode: 'Generar código',
+    errorTitle: 'No pudimos vincular',
+  },
+  home: {
+    title: 'Pagar',
+    payWith: (provider: string) => `Pagar con ${provider}`,
+    loadingMethods: 'Cargando tus métodos',
+    emptyTitle: 'Sin métodos de pago',
+    emptyDescription: 'Agrega Nequi o una tarjeta desde la app del celular.',
+    errorTitle: 'No cargaron tus métodos',
+    sessionLostTitle: 'Reloj desvinculado',
+    unpair: 'Desvincular reloj',
+    unpairConfirm: 'Toca otra vez para desvincular',
+  },
+  paymentMethod: {
+    providers: { NEQUI: 'Nequi', WOMPI: 'Wompi' } satisfies Record<PaymentProvider, string>,
+    cardBrands: {
+      VISA: 'Visa',
+      MASTERCARD: 'Mastercard',
+      AMEX: 'Amex',
+      DINERS: 'Diners',
+    } as Record<string, string>,
+  },
+  amount: {
+    quickAmountsLabel: 'Montos rápidos',
+    quickAmountShort: (thousands: string) => `${thousands} mil`,
+    keypadLabel: 'Teclado numérico',
+    delete: 'Borrar',
+    tripleZero: 'Tres ceros',
+    pay: (amount: string) => `Pagar ${amount}`,
+    enterAmount: 'Ingresa un monto',
+    overDeviceLimit: (limit: string) => `Máximo ${limit} por pago`,
+    overKeypadLimit: (limit: string) => `Máximo ${limit}`,
+  },
+  pin: {
+    title: 'Ingresa tu PIN',
+    subtitle: (amount: string) => `Para pagar ${amount}`,
+    confirm: 'Confirmar',
+    progress: (entered: number, max: number) => `${entered} de ${max} dígitos`,
+  },
+  processing: {
+    loadingTitle: 'Cargando…',
+    loadingDescription: (provider: string) => `Procesando con ${provider}`,
+    confirmingTitle: 'Confirmando…',
+    confirmingDescription: 'Tu pago está en revisión.',
+    successTitle: 'Pago aprobado',
+    successDescription: (provider: string) => `Pagado con ${provider}`,
+    done: 'Listo',
+    declinedTitle: 'Pago rechazado',
+    declinedDescription: (provider: string) => `${provider} no aprobó el pago. No se hizo ningún cobro.`,
+    failedTitle: 'No se pudo pagar',
+    errors: {
+      pin: 'PIN incorrecto o bloqueado. Si no tienes PIN, créalo en tu celular.',
+      limits: 'Supera el límite del reloj o el método no está disponible.',
+      idempotency: 'Este pago ya se procesó con otros datos.',
+      unknownOutcome: 'No sabemos si el pago pasó. Reintenta: no se cobrará dos veces.',
+    },
+  },
+} as const;
