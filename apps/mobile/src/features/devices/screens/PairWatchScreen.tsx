@@ -4,6 +4,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@/app/navigation/types';
 import { AppText } from '@/components/ui/AppText';
 import { Button } from '@/components/ui/Button';
+import { CheckIcon } from '@/components/ui/CheckIcon';
 import { FadeInView } from '@/components/ui/FadeInView';
 import { InlineAlert } from '@/components/ui/Feedback';
 import { Screen } from '@/components/ui/Screen';
@@ -42,9 +43,7 @@ export function PairWatchScreen({ navigation }: Props) {
             style={[styles.successMark, { borderRadius: radii.pill, backgroundColor: colors.successSubtle }]}
             accessibilityElementsHidden
           >
-            <AppText variant="display" tone="success">
-              ✓
-            </AppText>
+            <CheckIcon size={SUCCESS_ICON_SIZE} color={colors.success} />
           </View>
           <AppText variant="title" accessibilityRole="header" style={styles.centerText}>
             {t.successTitle}
@@ -107,6 +106,8 @@ export function PairWatchScreen({ navigation }: Props) {
     </Screen>
   );
 }
+
+const SUCCESS_ICON_SIZE = 40;
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },

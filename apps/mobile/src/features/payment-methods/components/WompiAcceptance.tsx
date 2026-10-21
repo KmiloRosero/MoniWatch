@@ -1,5 +1,6 @@
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/ui/AppText';
+import { CheckIcon } from '@/components/ui/CheckIcon';
 import { copy } from '@/i18n/es';
 import type { WompiCheckout } from '@/services/api/types';
 import { useTheme } from '@/theme/useTheme';
@@ -37,11 +38,7 @@ export function WompiAcceptance({ acceptance, accepted, onChange, error }: Wompi
             },
           ]}
         >
-          {accepted ? (
-            <AppText variant="label" style={{ color: colors.onPrimary }}>
-              ✓
-            </AppText>
-          ) : null}
+          {accepted ? <CheckIcon size={CHECKBOX_ICON_SIZE} color={colors.onPrimary} strokeWidth={3} /> : null}
         </Pressable>
         <AppText variant="caption" tone="secondary" style={styles.flex}>
           {t.acceptancePrefix}
@@ -63,6 +60,8 @@ export function WompiAcceptance({ acceptance, accepted, onChange, error }: Wompi
     </View>
   );
 }
+
+const CHECKBOX_ICON_SIZE = 16;
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'flex-start' },
