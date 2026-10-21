@@ -71,6 +71,10 @@ cd apps/watch/wearos && cp .env.example .env && npx expo run:android
 En los emuladores de Android, `EXPO_PUBLIC_API_URL=http://10.0.2.2:3000/api/v1`. En un dispositivo físico,
 usa la IP de tu PC en la red local o la URL pública de Render.
 
+> **Windows:** las compilaciones nativas de Android fallan si la ruta del proyecto es larga
+> (límite de 260 caracteres en el compilador C++). Clona el repositorio en una ruta corta y fuera de OneDrive,
+> por ejemplo `C:\dev\moniwatch`. OneDrive además intenta sincronizar `node_modules`, lo que vuelve todo lento.
+
 ## Wompi (pagos reales con tarjeta)
 
 1. En [comercios.wompi.co](https://comercios.wompi.co) → *Desarrolladores*, copia las 4 llaves de **Sandbox**.
