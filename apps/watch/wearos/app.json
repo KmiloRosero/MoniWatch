@@ -9,7 +9,6 @@
     "backgroundColor": "#000000",
     "android": {
       "package": "com.moniwatch.wear",
-      "edgeToEdgeEnabled": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive.png",
         "backgroundColor": "#000000"
