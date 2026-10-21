@@ -1,8 +1,8 @@
 {
-  "name": "@smartwatch-pay/backend",
+  "name": "@moniwatch/backend",
   "version": "0.1.0",
   "private": true,
-  "description": "Smartwatch Pay API (NestJS + Prisma + SQLite)",
+  "description": "MoniWatch API (NestJS + Prisma)",
   "scripts": {
     "build": "nest build",
     "start": "node dist/main.js",

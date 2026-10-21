@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, View, type TextInputInstance } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@/app/navigation/types';
+import { Logo } from '@/components/brand/Logo';
 import { AppText } from '@/components/ui/AppText';
 import { Button } from '@/components/ui/Button';
 import { InlineAlert } from '@/components/ui/Feedback';
@@ -52,9 +53,8 @@ export function LoginScreen({ navigation }: Props) {
   return (
     <Screen scroll footer={<Button label={t.submit} onPress={submit} loading={login.isPending} />}>
       <View style={{ gap: spacing.sm, marginTop: spacing.xxxl }}>
-        <AppText variant="label" tone="accent">
-          {t.brand}
-        </AppText>
+        <Logo />
+        <View style={{ height: spacing.lg }} />
         <AppText variant="display" accessibilityRole="header">
           {t.title}
         </AppText>

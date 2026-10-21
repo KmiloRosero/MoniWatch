@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Feedback';
 import { copy } from '@/i18n/es';
 import type { PaymentMethod } from '@/services/api/types';
+import { providerColors } from '@/theme/tokens';
 import { useTheme } from '@/theme/useTheme';
 import { paymentMethodDetail, paymentMethodTitle } from '../utils/presentation';
 
@@ -42,12 +43,11 @@ export function PaymentMethodCard({ method, onMakeDefault, onRemove, isUpdating,
           importantForAccessibility="no-hide-descendants"
           style={[
             styles.monogram,
-            { width: sizes.avatar, height: sizes.avatar, borderRadius: radii.md, backgroundColor: colors.accentSubtle },
+            { width: sizes.avatar, height: sizes.avatar, borderRadius: radii.md, backgroundColor: colors.surfaceMuted },
           ]}
         >
-          <AppText variant="headline" tone="accent">
-            {providerName.charAt(0)}
-          </AppText>
+          <AppText variant="headline">{providerName.charAt(0)}</AppText>
+          <View style={[styles.providerDot, { backgroundColor: providerColors[method.provider], borderColor: colors.surface }]} />
         </View>
 
         <View style={[styles.flex, { gap: spacing.xxs }]}>
@@ -96,6 +96,15 @@ const styles = StyleSheet.create({
   monogram: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  providerDot: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2,
   },
   actions: {
     flexDirection: 'row',

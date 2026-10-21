@@ -93,7 +93,7 @@ function TransactionRow({ transaction }: { transaction: Transaction }) {
         </AppText>
       </View>
       <View style={[styles.trailing, { gap: spacing.xs }]}>
-        <AppText variant="headline" tone={approved ? 'primary' : 'tertiary'} style={styles.amount}>
+        <AppText variant="money" tone={approved ? 'primary' : 'tertiary'}>
           {formatMinorUnits(transaction.amountInCents)}
         </AppText>
         <Badge label={t.status[transaction.status]} tone={STATUS_TONE[transaction.status]} />
@@ -106,6 +106,5 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   row: { flexDirection: 'row', alignItems: 'center' },
   trailing: { alignItems: 'flex-end' },
-  amount: { fontVariant: ['tabular-nums'] },
   separator: { height: StyleSheet.hairlineWidth },
 });

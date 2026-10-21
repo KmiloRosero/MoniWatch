@@ -1,50 +1,74 @@
 import { Easing, type TextStyle } from 'react-native';
 
+/**
+ * MoniWatch — "lima sobre tinta" (see DESIGN.md).
+ * Lime marks where money moves (primary action, success); everything else stays ink/paper.
+ */
 const lightColors = {
-  background: '#F7F7F8',
+  background: '#F7F8F3',
   surface: '#FFFFFF',
-  surfaceMuted: '#F0F1F3',
-  border: '#E4E5E9',
-  borderStrong: '#CDD0D6',
-  textPrimary: '#101114',
-  textSecondary: '#5C6170',
-  textTertiary: '#8B909C',
-  accent: '#3355FF',
-  accentPressed: '#2443D9',
-  accentSubtle: '#EBEFFF',
+  surfaceMuted: '#EEF0E8',
+  border: '#DFE2D6',
+  borderStrong: '#C9CEBF',
+  textPrimary: '#0A0C08',
+  textSecondary: '#5A6052',
+  textTertiary: '#878D7D',
+  /** Filled primary action. */
+  primary: '#C9F45A',
+  primaryPressed: '#B5E33B',
+  onPrimary: '#0A0C08',
+  /** Links, focus rings and selection: lime is unreadable as text on paper, so light mode uses a deep olive. */
+  accent: '#3A5600',
+  accentPressed: '#2C4200',
+  accentSubtle: '#EEF8D2',
   onAccent: '#FFFFFF',
-  danger: '#D92D20',
-  dangerSubtle: '#FDECEA',
-  success: '#0F9F5F',
-  successSubtle: '#E7F6EE',
-  warning: '#B54708',
-  warningSubtle: '#FEF3E6',
-  shadow: '#101114',
+  danger: '#D93A26',
+  dangerSubtle: '#FCE9E5',
+  success: '#3A7D00',
+  successSubtle: '#E8F6D6',
+  warning: '#A86A00',
+  warningSubtle: '#FBF0DA',
+  shadow: '#0A0C08',
 };
 
 export type ColorTokens = typeof lightColors;
 
 const darkColors: ColorTokens = {
-  background: '#0C0D10',
-  surface: '#16181D',
-  surfaceMuted: '#1E2128',
-  border: '#2A2D35',
-  borderStrong: '#3A3E48',
-  textPrimary: '#F3F4F6',
-  textSecondary: '#A3A8B4',
-  textTertiary: '#737885',
-  accent: '#7C93FF',
-  accentPressed: '#6A82F5',
-  accentSubtle: '#1C2340',
-  onAccent: '#0C0D10',
-  danger: '#F97066',
-  dangerSubtle: '#3A1A18',
-  success: '#47CD89',
-  successSubtle: '#13291E',
-  warning: '#FDB022',
-  warningSubtle: '#33240B',
+  background: '#0A0C08',
+  surface: '#14170F',
+  surfaceMuted: '#1E2218',
+  border: '#2B3024',
+  borderStrong: '#3A4031',
+  textPrimary: '#F2F4EC',
+  textSecondary: '#A7AD9C',
+  textTertiary: '#737A68',
+  primary: '#C9F45A',
+  primaryPressed: '#B5E33B',
+  onPrimary: '#0A0C08',
+  accent: '#C9F45A',
+  accentPressed: '#B5E33B',
+  accentSubtle: '#253012',
+  onAccent: '#0A0C08',
+  danger: '#FF6B57',
+  dangerSubtle: '#3A1A14',
+  success: '#C9F45A',
+  successSubtle: '#253012',
+  warning: '#F5B83D',
+  warningSubtle: '#33270C',
   shadow: '#000000',
 };
+
+/** Identity dots only (never fills). */
+export const providerColors = {
+  NEQUI: '#FF3D9A',
+  WOMPI: '#A08CFF',
+} as const;
+
+/** Loaded in App.tsx; custom families carry their own weight, so no fontWeight alongside them. */
+export const fonts = {
+  display: 'SpaceGrotesk_700Bold',
+  displayMedium: 'SpaceGrotesk_600SemiBold',
+} as const;
 
 /** 4pt scale. Every margin, padding and gap in the app comes from here. */
 export const spacing = {
@@ -67,13 +91,14 @@ export const radii = {
 } as const;
 
 export const typography = {
-  display: { fontSize: 28, lineHeight: 34, fontWeight: '700', letterSpacing: -0.4 },
-  title: { fontSize: 22, lineHeight: 28, fontWeight: '600', letterSpacing: -0.2 },
+  display: { fontFamily: fonts.display, fontSize: 30, lineHeight: 36, letterSpacing: -0.6 },
+  title: { fontFamily: fonts.display, fontSize: 22, lineHeight: 28, letterSpacing: -0.3 },
   headline: { fontSize: 17, lineHeight: 22, fontWeight: '600' },
   body: { fontSize: 16, lineHeight: 22, fontWeight: '400' },
   callout: { fontSize: 15, lineHeight: 20, fontWeight: '500' },
   caption: { fontSize: 13, lineHeight: 18, fontWeight: '400' },
-  label: { fontSize: 13, lineHeight: 16, fontWeight: '600', letterSpacing: 0.2 },
+  label: { fontSize: 12, lineHeight: 16, fontWeight: '600', letterSpacing: 0.4 },
+  money: { fontFamily: fonts.displayMedium, fontSize: 17, lineHeight: 22, fontVariant: ['tabular-nums'] },
 } satisfies Record<string, TextStyle>;
 
 export type TypographyVariant = keyof typeof typography;
@@ -85,9 +110,8 @@ export const sizes = {
 } as const;
 
 /**
- * Motion follows the design-engineering rules: UI stays under 300ms,
- * ease-out for enter/press feedback, ease-in-out for on-screen movement,
- * and only transform/opacity are animated (native driver).
+ * Motion: UI stays under 300ms, ease-out for enter/press feedback,
+ * ease-in-out for on-screen movement, only transform/opacity on the native driver.
  */
 export const motion = {
   duration: {

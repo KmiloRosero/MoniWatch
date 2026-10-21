@@ -1,6 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 
-const SESSION_KEY = 'smartwatch-pay.device-session';
+const SESSION_KEY = 'moniwatch.device-session';
 
 export interface DeviceSessionTokens {
   deviceSessionId: string;

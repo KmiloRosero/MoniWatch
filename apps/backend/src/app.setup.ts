@@ -25,8 +25,8 @@ export function configureApp(app: INestApplication, options: { enableDocs: boole
     const document = SwaggerModule.createDocument(
       app,
       new DocumentBuilder()
-        .setTitle('Smartwatch Pay API')
-        .setDescription('Backend for the Smartwatch Pay mobile and Wear OS apps')
+        .setTitle('MoniWatch API')
+        .setDescription('Backend for the MoniWatch mobile and Wear OS apps')
         .setVersion('1.0')
         .addBearerAuth()
         .build(),

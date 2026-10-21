@@ -1,0 +1,11 @@
+{
+  "name": "@moniwatch/brand",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "node generate-assets.mjs"
+  },
+  "devDependencies": {
+    "sharp": "^0.34.0"
+  }
+}

@@ -3,7 +3,7 @@ import * as Crypto from 'expo-crypto';
 import * as Device from 'expo-device';
 import * as SecureStore from 'expo-secure-store';
 
-const DEVICE_ID_KEY = 'smartwatch-pay.device-id';
+const DEVICE_ID_KEY = 'moniwatch.device-id';
 
 export interface DeviceIdentity {
   deviceId: string;

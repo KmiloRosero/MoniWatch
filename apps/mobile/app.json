@@ -1,22 +1,40 @@
 {
   "expo": {
-    "name": "Smartwatch Pay",
-    "slug": "smartwatch-pay",
-    "scheme": "smartwatchpay",
+    "name": "MoniWatch",
+    "slug": "moniwatch",
+    "scheme": "moniwatch",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "bundleIdentifier": "com.smartwatchpay.mobile",
+      "bundleIdentifier": "com.moniwatch.app",
       "supportsTablet": false
     },
     "android": {
-      "package": "com.smartwatchpay.mobile",
-      "edgeToEdgeEnabled": true
+      "package": "com.moniwatch.app",
+      "edgeToEdgeEnabled": true,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive.png",
+        "backgroundColor": "#0A0C08"
+      }
     },
     "plugins": [
       "expo-status-bar",
-      "expo-secure-store"
-    ]
+      "expo-secure-store",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "imageWidth": 140,
+          "backgroundColor": "#F7F8F3",
+          "dark": {
+            "image": "./assets/splash.png",
+            "backgroundColor": "#0A0C08"
+          }
+        }
+      ]
+    ],
+    "icon": "./assets/icon.png"
   }
 }

@@ -15,7 +15,7 @@ export const copy = {
   pairing: {
     preparing: 'Preparando…',
     title: 'Vincula tu reloj',
-    instruction: 'En tu celular abre Smartwatch Pay y toca “Vincular reloj”.',
+    instruction: 'En el celular: MoniWatch › Ajustes › Mis relojes.',
     codeLabel: (code: string) => `Código de vinculación: ${code.split('').join(' ')}`,
     waiting: 'Esperando confirmación',
     expiresIn: (time: string) => `Vence en ${time}`,

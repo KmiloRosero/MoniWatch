@@ -1,5 +1,5 @@
 // =============================================================================
-// Smartwatch Pay - Prisma Schema
+// MoniWatch - Prisma Schema
 // Database: SQLite (enums and Json supported since Prisma 6.2)
 // Monetary amounts are stored as integers in minor units (cents) to avoid
 // floating point errors. Sensitive provider tokens are stored encrypted

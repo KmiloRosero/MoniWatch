@@ -1,8 +1,8 @@
 {
-  "name": "smartwatch-pay",
+  "name": "moniwatch",
   "version": "0.1.0",
   "private": true,
-  "description": "Smartwatch payments with Nequi and Wompi: NestJS backend, Expo companion app and Wear OS app",
+  "description": "MoniWatch: wrist payments with Nequi and Wompi: NestJS backend, Expo companion app and Wear OS app",
   "scripts": {
     "install:all": "npm --prefix apps/backend install && npm --prefix apps/mobile install && npm --prefix apps/watch/wearos install",
     "backend:db": "npm --prefix apps/backend run prisma:deploy",

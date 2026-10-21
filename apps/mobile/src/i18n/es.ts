@@ -12,7 +12,6 @@ export const copy = {
     generic: 'Algo salió mal. Intenta de nuevo.',
   },
   login: {
-    brand: 'Smartwatch Pay',
     title: 'Inicia sesión',
     subtitle: 'Paga desde tu reloj con Nequi o con tu tarjeta.',
     emailLabel: 'Correo electrónico',
@@ -121,7 +120,7 @@ export const copy = {
     heading: 'Vincula tu reloj',
     description: 'Así podrás pagar desde tu muñeca sin sacar el celular.',
     steps: [
-      'Abre Smartwatch Pay en tu reloj.',
+      'Abre MoniWatch en tu reloj.',
       'Verás un código de 8 letras en la pantalla.',
       'Escríbelo aquí abajo para confirmar que el reloj es tuyo.',
     ],
