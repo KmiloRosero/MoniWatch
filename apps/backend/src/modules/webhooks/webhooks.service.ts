@@ -3,7 +3,6 @@ import {
   Injectable,
   Logger,
   ServiceUnavailableException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PaymentProvider, Prisma, TransactionStatus, WebhookProcessingStatus } from '@prisma/client';
@@ -55,8 +54,9 @@ export class WebhooksService {
     if (!recorded) return { received: true, duplicate: true };
 
     if (!signatureValid) {
-      this.logger.warn(`Rejected Wompi event with invalid signature (${recorded.id})`);
-      throw new UnauthorizedException('Invalid event signature');
+      // Per Wompi docs the event must be ignored; answering 200 stops pointless retries.
+      this.logger.warn(`Ignored Wompi event with invalid signature (${recorded.id})`);
+      return { received: true };
     }
 
     try {

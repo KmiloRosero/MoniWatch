@@ -28,18 +28,22 @@ import {
 import { PaymentPinService } from '../auth/services/payment-pin.service';
 import { AuthPrincipal } from '../auth/types/auth-principal';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
+import { TransactionSettlementService } from './transaction-settlement.service';
 import { TransactionStateService } from './transaction-state.service';
 import { ListTransactionsQueryDto } from './dto/list-transactions-query.dto';
 import {
   DEFAULT_PAGE_SIZE,
   DEVICE_LIMIT_WINDOW_MS,
   LIMIT_COUNTED_STATUSES,
+  OPEN_STATUSES,
   PublicTransaction,
   transactionPublicSelect,
   TransitionSource,
 } from './transaction.constants';
 
 const MS_PER_MINUTE = 60_000;
+/** Throttles provider status checks triggered by clients polling an open transaction. */
+const RECONCILE_ON_READ_MIN_INTERVAL_MS = 2_000;
 
 const chargeablePaymentMethodSelect = {
   id: true,
@@ -77,6 +81,7 @@ export class TransactionsService {
     private readonly providers: PaymentProviderFactory,
     private readonly paymentPin: PaymentPinService,
     private readonly state: TransactionStateService,
+    private readonly settlement: TransactionSettlementService,
     config: ConfigService<EnvironmentVariables, true>,
   ) {
     this.expirationMs = config.get('TRANSACTION_EXPIRATION_MINUTES', { infer: true }) * MS_PER_MINUTE;
@@ -155,7 +160,7 @@ export class TransactionsService {
 
     const customer = await this.loadCustomer(userId);
     const result = await this.charge(paymentMethod, reference, dto, customer);
-    await this.applyChargeResult(transactionId, result);
+    await this.settlement.apply(transactionId, result, TransitionSource.Provider);
     await this.touchUsage(paymentMethod.id, device?.id ?? null);
 
     return this.findOneForUser(userId, transactionId);
@@ -177,13 +182,20 @@ export class TransactionsService {
     return { items: page, nextCursor: hasMore ? page[page.length - 1].id : null };
   }
 
+  /**
+   * Open transactions are reconciled with the provider on read (at most every few seconds),
+   * so the watch sees the final status even when no webhook can reach this server.
+   */
   async findOneForUser(userId: string, id: string): Promise<PublicTransaction> {
-    const transaction = await this.prisma.transaction.findFirst({
-      where: { id, userId },
-      select: transactionPublicSelect,
-    });
+    const find = () => this.prisma.transaction.findFirst({ where: { id, userId }, select: transactionPublicSelect });
+    const transaction = await find();
     if (!transaction) {
       throw new NotFoundException('Transaction not found');
+    }
+
+    const isOpen = OPEN_STATUSES.includes(transaction.status);
+    if (isOpen && Date.now() - transaction.updatedAt.getTime() >= RECONCILE_ON_READ_MIN_INTERVAL_MS) {
+      if (await this.settlement.reconcile(id)) return (await find()) ?? transaction;
     }
     return transaction;
   }
@@ -320,29 +332,6 @@ export class TransactionsService {
         rawResponse: {},
       };
     }
-  }
-
-  private async applyChargeResult(transactionId: string, result: ChargeResult): Promise<void> {
-    const approved = result.outcome === ChargeOutcome.Approved;
-    const now = new Date();
-
-    await this.state.transition(
-      transactionId,
-      TransactionStatus.PROCESSING,
-      approved ? TransactionStatus.APPROVED : TransactionStatus.FAILED,
-      TransitionSource.Provider,
-      {
-        providerTransactionId: result.providerTransactionId,
-        providerStatus: result.providerStatus,
-        providerResponse: result.rawResponse as Prisma.InputJsonObject,
-        failureCode: result.failureCode,
-        failureReason: result.failureReason,
-        processedAt: now,
-        approvedAt: approved ? now : null,
-        failedAt: approved ? null : now,
-      },
-      result.failureReason,
-    );
   }
 
   private async touchUsage(paymentMethodId: string, deviceSessionId: string | null): Promise<void> {

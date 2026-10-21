@@ -90,12 +90,12 @@ describe('Wompi webhooks and expiration sweep', () => {
     expect(stored).toMatchObject({ status: TransactionStatus.FAILED, failureCode: 'WOMPI_DECLINED' });
   });
 
-  it('rejects a forged signature and stores it for audit', async () => {
+  it('ignores a forged signature (answering 200, as Wompi asks) and stores it for audit', async () => {
     const transaction = await openWompiTransaction();
     const event = signedEvent(transaction, 'APPROVED');
     event.signature.checksum = 'F'.repeat(64);
 
-    await client.post('/webhooks/wompi', event).expect(401);
+    await client.post('/webhooks/wompi', event).expect(200);
     const stored = await prisma.transaction.findUniqueOrThrow({ where: { id: transaction.id } });
     expect(stored.status).toBe(TransactionStatus.PROCESSING);
     const audit = await prisma.webhookEvent.findFirst({ where: { providerEventId: event.signature.checksum } });

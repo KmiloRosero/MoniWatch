@@ -5,6 +5,7 @@ export enum TransitionSource {
   Provider = 'PROVIDER',
   Webhook = 'WEBHOOK',
   ExpirationSweep = 'EXPIRATION_SWEEP',
+  Reconciliation = 'RECONCILIATION',
 }
 
 /** Statuses a transaction can still leave; everything else is final. */

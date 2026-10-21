@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { paymentMethodsApi } from '@/services/api/payment-methods.api';
 import { queryKeys } from '@/services/api/query-keys';
+import type { WompiCheckout } from '@/services/api/types';
 import { tokenizeCard, type CardDetails } from '@/services/wompi/card-tokenizer';
 import { toE164 } from '../utils/phone';
 
@@ -14,7 +15,21 @@ export interface LinkNequiInput extends LinkOptions {
   localPhoneNumber: string;
 }
 
-export type LinkCardInput = LinkOptions & CardDetails;
+export type LinkCardInput = LinkOptions &
+  CardDetails & {
+    checkout: WompiCheckout;
+  };
+
+/** Acceptance tokens are pre-signed by Wompi and short-lived: refetch before they go stale. */
+const WOMPI_CHECKOUT_STALE_MS = 4 * 60_000;
+
+export function useWompiCheckout() {
+  return useQuery({
+    queryKey: queryKeys.wompiCheckout,
+    queryFn: paymentMethodsApi.wompiCheckout,
+    staleTime: WOMPI_CHECKOUT_STALE_MS,
+  });
+}
 
 export function usePaymentMethods() {
   return useQuery({
@@ -70,8 +85,8 @@ export function useLinkNequiAccount() {
 export function useLinkWompiCard() {
   const invalidate = useInvalidatePaymentMethods();
   return useMutation({
-    mutationFn: async ({ alias, isDefault, ...card }: LinkCardInput) => {
-      const token = await tokenizeCard(card);
+    mutationFn: async ({ alias, isDefault, checkout, ...card }: LinkCardInput) => {
+      const token = await tokenizeCard(card, checkout);
       return paymentMethodsApi.create({
         provider: 'WOMPI',
         type: 'CARD',
@@ -82,6 +97,9 @@ export function useLinkWompiCard() {
         cardExpYear: token.expYear,
         alias,
         isDefault,
+        // Present only in LIVE mode, after the user accepted Wompi's terms in the form.
+        acceptanceToken: checkout.acceptance?.acceptanceToken,
+        personalDataAuthToken: checkout.acceptance?.personalDataAuthToken,
       });
     },
     onSuccess: invalidate,

@@ -7,7 +7,7 @@ import { TextField } from '@/components/ui/TextField';
 import { ToggleRow } from '@/components/ui/ToggleRow';
 import { copy } from '@/i18n/es';
 import { useTheme } from '@/theme/useTheme';
-import { useLinkWompiCard } from '../hooks/usePaymentMethods';
+import { useLinkWompiCard, useWompiCheckout } from '../hooks/usePaymentMethods';
 import {
   cvcLength,
   detectCardBrand,
@@ -20,6 +20,7 @@ import {
   parseExpiry,
 } from '../utils/card';
 import { cardBrandName, linkErrorMessage } from '../utils/presentation';
+import { WompiAcceptance } from './WompiAcceptance';
 
 const t = copy.addPaymentMethod;
 
@@ -46,6 +47,7 @@ const NO_ERRORS = { number: null, holder: null, expiry: null, cvc: null };
 export function CardForm({ onLinked }: { onLinked: () => void }) {
   const { spacing } = useTheme();
   const linkCard = useLinkWompiCard();
+  const checkout = useWompiCheckout();
   const holderRef = useRef<TextInputInstance>(null);
   const expiryRef = useRef<TextInputInstance>(null);
   const cvcRef = useRef<TextInputInstance>(null);
@@ -54,16 +56,20 @@ export function CardForm({ onLinked }: { onLinked: () => void }) {
   const [alias, setAlias] = useState('');
   const [makeDefault, setMakeDefault] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [accepted, setAccepted] = useState(false);
 
   const brand = detectCardBrand(values.numberDigits);
   const errors = submitted ? validate(values) : NO_ERRORS;
   const update = (patch: Partial<CardFormValues>) => setValues((current) => ({ ...current, ...patch }));
+  const acceptance = checkout.data?.acceptance ?? null;
+  const acceptanceError = submitted && acceptance && !accepted ? t.errors.acceptanceRequired : null;
 
   const submit = () => {
     setSubmitted(true);
     const result = validate(values);
     const expiry = parseExpiry(values.expiry);
-    if (Object.values(result).some(Boolean) || !expiry || linkCard.isPending) return;
+    if (Object.values(result).some(Boolean) || !expiry || linkCard.isPending || !checkout.data) return;
+    if (acceptance && !accepted) return;
 
     linkCard.mutate(
       {
@@ -74,6 +80,7 @@ export function CardForm({ onLinked }: { onLinked: () => void }) {
         cvc: values.cvc,
         alias: alias.trim() || undefined,
         isDefault: makeDefault,
+        checkout: checkout.data,
       },
       { onSuccess: onLinked },
     );
@@ -155,8 +162,21 @@ export function CardForm({ onLinked }: { onLinked: () => void }) {
       <AppText variant="caption" tone="tertiary">
         {t.card.securityNote}
       </AppText>
+      {acceptance ? (
+        <WompiAcceptance acceptance={acceptance} accepted={accepted} onChange={setAccepted} error={acceptanceError} />
+      ) : null}
+      {checkout.isError ? <InlineAlert message={t.errors.checkoutUnavailable} /> : null}
       {linkCard.error ? <InlineAlert message={linkErrorMessage(linkCard.error)} /> : null}
-      <Button label={t.card.submit} onPress={submit} loading={linkCard.isPending} />
+      {checkout.isError ? (
+        <Button label={copy.common.retry} onPress={() => void checkout.refetch()} variant="secondary" />
+      ) : (
+        <Button
+          label={checkout.isPending ? t.card.checkoutLoading : t.card.submit}
+          onPress={submit}
+          loading={linkCard.isPending}
+          disabled={checkout.isPending}
+        />
+      )}
     </View>
   );
 }

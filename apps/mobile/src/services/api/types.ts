@@ -97,6 +97,21 @@ export interface CreatePaymentMethodRequest {
   cardBrand?: string;
   cardExpMonth?: number;
   cardExpYear?: number;
+  acceptanceToken?: string;
+  personalDataAuthToken?: string;
+}
+
+/** Served by the backend so the app never ships payment configuration. */
+export interface WompiCheckout {
+  mode: 'SIMULATED' | 'LIVE';
+  publicKey: string | null;
+  apiUrl: string | null;
+  acceptance: {
+    acceptanceToken: string;
+    termsUrl: string;
+    personalDataAuthToken: string;
+    personalDataUrl: string;
+  } | null;
 }
 
 export interface ApprovedPairing {

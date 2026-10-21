@@ -1,6 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotImplementedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PaymentMethodStatus, PaymentMethodType, PaymentProvider } from '@prisma/client';
 import { lastDigits } from '../../common/utils/mask';
+import { EnvironmentVariables, ProviderMode } from '../../config/env.validation';
 import { PaymentGatewaySimulator } from '../payment-gateway.simulator';
 import {
   ChargeInput,
@@ -11,15 +13,22 @@ import {
   PaymentSourceResult,
 } from '../payment-provider.interface';
 
+/** Direct Nequi integration. Only the simulated mode exists for now (NEQUI_MODE=SIMULATED). */
 @Injectable()
 export class NequiProvider implements PaymentProviderAdapter {
   readonly provider = PaymentProvider.NEQUI;
   readonly supportedMethodTypes: readonly PaymentMethodType[] = [PaymentMethodType.WALLET];
+  private readonly mode: ProviderMode;
 
-  constructor(private readonly simulator: PaymentGatewaySimulator) {}
+  constructor(
+    private readonly simulator: PaymentGatewaySimulator,
+    config: ConfigService<EnvironmentVariables, true>,
+  ) {
+    this.mode = config.get('NEQUI_MODE', { infer: true });
+  }
 
   async createPaymentSource(input: CreatePaymentSourceInput): Promise<PaymentSourceResult> {
-    this.simulator.ensureSimulationMode(this.provider);
+    this.ensureSimulated();
     const phoneNumber = input.credentials.walletPhoneNumber ?? input.customer.phoneNumber;
     const providerSourceId = await this.simulator.registerSource(this.provider);
 
@@ -33,7 +42,7 @@ export class NequiProvider implements PaymentProviderAdapter {
   }
 
   async charge(input: ChargeInput): Promise<ChargeResult> {
-    this.simulator.ensureSimulationMode(this.provider);
+    this.ensureSimulated();
     const decision = await this.simulator.decideCharge(this.provider);
 
     return {
@@ -50,5 +59,11 @@ export class NequiProvider implements PaymentProviderAdapter {
         processedAt: decision.processedAt.toISOString(),
       },
     };
+  }
+
+  private ensureSimulated(): void {
+    if (this.mode !== ProviderMode.Simulated) {
+      throw new NotImplementedException('Live Nequi integration is not implemented yet');
+    }
   }
 }

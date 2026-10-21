@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { PaymentMethodStatus, PaymentMethodType, Prisma } from '@prisma/client';
+import { PaymentMethodStatus, PaymentMethodType, PaymentProvider, Prisma } from '@prisma/client';
 import { lastDigits, maskPhoneNumber } from '../../common/utils/mask';
 import { TokenVaultService } from '../../infrastructure/crypto/token-vault.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
@@ -56,6 +56,10 @@ export class PaymentMethodsService {
     const source = await adapter.createPaymentSource({
       type: dto.type,
       credentials,
+      acceptance:
+        dto.acceptanceToken && dto.personalDataAuthToken
+          ? { acceptanceToken: dto.acceptanceToken, personalDataAuthToken: dto.personalDataAuthToken }
+          : null,
       customer: {
         email: user.email,
         phoneNumber: user.phoneNumber,
@@ -108,6 +112,15 @@ export class PaymentMethodsService {
         ? tx.paymentMethod.update({ where: { id: existing.id }, data, select: paymentMethodPublicSelect })
         : tx.paymentMethod.create({ data: { ...data, userId }, select: paymentMethodPublicSelect });
     });
+  }
+
+  /** What the app needs to tokenize a card with the provider and show its legal terms. */
+  async getCheckoutConfig(provider: PaymentProvider) {
+    const adapter = this.providers.get(provider);
+    if (!adapter.getCheckoutConfig) {
+      throw new NotFoundException(`${provider} has no checkout configuration`);
+    }
+    return adapter.getCheckoutConfig();
   }
 
   findAllForUser(userId: string) {

@@ -5,6 +5,7 @@ import { DevicePairingStatus, TransactionStatus } from '@prisma/client';
 import { EnvironmentVariables } from '../../config/env.validation';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { OPEN_STATUSES, TransitionSource } from './transaction.constants';
+import { TransactionSettlementService } from './transaction-settlement.service';
 import { TransactionStateService } from './transaction-state.service';
 
 const SWEEP_INTERVAL_NAME = 'transaction-expiration-sweep';
@@ -24,6 +25,7 @@ export class TransactionExpirationService implements OnModuleInit, OnModuleDestr
   constructor(
     private readonly prisma: PrismaService,
     private readonly state: TransactionStateService,
+    private readonly settlement: TransactionSettlementService,
     private readonly scheduler: SchedulerRegistry,
     config: ConfigService<EnvironmentVariables, true>,
   ) {
@@ -56,6 +58,8 @@ export class TransactionExpirationService implements OnModuleInit, OnModuleDestr
 
       let expired = 0;
       for (const { id } of stale) {
+        // The provider may have settled it without a webhook reaching us.
+        if (await this.settlement.reconcile(id)) continue;
         const moved = await this.state.tryTransition(
           id,
           OPEN_STATUSES,

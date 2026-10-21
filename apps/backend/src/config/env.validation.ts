@@ -7,6 +7,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUrl,
   Max,
   Min,
   MinLength,
@@ -19,7 +20,8 @@ export enum NodeEnvironment {
   Production = 'production',
 }
 
-export enum PaymentGatewayMode {
+/** Each provider runs against the simulator or its real API, independently. */
+export enum ProviderMode {
   Simulated = 'SIMULATED',
   Live = 'LIVE',
 }
@@ -100,8 +102,15 @@ export class EnvironmentVariables {
   @Min(1)
   TRANSACTION_EXPIRATION_MINUTES: number;
 
-  @IsEnum(PaymentGatewayMode)
-  PAYMENT_GATEWAY_MODE: PaymentGatewayMode;
+  @IsInt()
+  @Min(5)
+  TRANSACTION_SWEEP_INTERVAL_SECONDS: number;
+
+  @IsEnum(ProviderMode)
+  NEQUI_MODE: ProviderMode;
+
+  @IsEnum(ProviderMode)
+  WOMPI_MODE: ProviderMode;
 
   @IsNumber()
   @Min(0)
@@ -112,14 +121,37 @@ export class EnvironmentVariables {
   @Min(0)
   PAYMENT_SIMULATOR_LATENCY_MS: number;
 
-  @IsInt()
-  @Min(5)
-  TRANSACTION_SWEEP_INTERVAL_SECONDS: number;
+  /** https://sandbox.wompi.co/v1 or https://production.wompi.co/v1 */
+  @IsOptional()
+  @IsUrl({ require_tld: true, protocols: ['https'] })
+  WOMPI_API_URL?: string;
+
+  @IsOptional()
+  @IsString()
+  WOMPI_PUBLIC_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  WOMPI_PRIVATE_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  WOMPI_INTEGRITY_SECRET?: string;
 
   /** Secret from the Wompi dashboard used to verify event checksums. Webhooks answer 503 without it. */
   @IsOptional()
   @IsString()
   WOMPI_EVENTS_SECRET?: string;
+
+  /** How long a payment request waits for Wompi's final answer before returning PROCESSING. */
+  @IsInt()
+  @Min(0)
+  @Max(20)
+  WOMPI_STATUS_POLL_ATTEMPTS: number;
+
+  @IsInt()
+  @Min(200)
+  WOMPI_STATUS_POLL_INTERVAL_MS: number;
 
   @IsInt()
   @Min(1)
@@ -135,17 +167,31 @@ export class EnvironmentVariables {
   THROTTLE_SENSITIVE_LIMIT: number;
 }
 
+const WOMPI_LIVE_REQUIRED = [
+  'WOMPI_API_URL',
+  'WOMPI_PUBLIC_KEY',
+  'WOMPI_PRIVATE_KEY',
+  'WOMPI_INTEGRITY_SECRET',
+] as const satisfies ReadonlyArray<keyof EnvironmentVariables>;
+
 export function validateEnvironment(config: Record<string, unknown>): EnvironmentVariables {
   const validated = plainToInstance(EnvironmentVariables, config, {
     enableImplicitConversion: true,
   });
   const errors = validateSync(validated, { skipMissingProperties: false });
 
-  if (errors.length > 0) {
-    const details = errors
-      .map((error) => `${error.property}: ${Object.values(error.constraints ?? {}).join(', ')}`)
-      .join('\n');
-    throw new Error(`Invalid environment configuration:\n${details}`);
+  const details = errors.map(
+    (error) => `${error.property}: ${Object.values(error.constraints ?? {}).join(', ')}`,
+  );
+
+  if (validated.WOMPI_MODE === ProviderMode.Live) {
+    for (const key of WOMPI_LIVE_REQUIRED) {
+      if (!validated[key]) details.push(`${key}: required when WOMPI_MODE=LIVE`);
+    }
+  }
+
+  if (details.length > 0) {
+    throw new Error(`Invalid environment configuration:\n${details.join('\n')}`);
   }
 
   return validated;

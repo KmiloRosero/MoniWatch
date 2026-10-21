@@ -1,5 +1,5 @@
-import { env } from '@/config/env';
 import { detectCardBrand } from '@/features/payment-methods/utils/card';
+import type { WompiCheckout } from '@/services/api/types';
 
 export interface CardDetails {
   number: string;
@@ -36,24 +36,24 @@ interface WompiCardTokenResponse {
 const pad2 = (value: number) => value.toString().padStart(2, '0');
 
 /**
- * Card data goes straight from the phone to Wompi; the backend only ever
- * receives the resulting token plus non-sensitive display data.
+ * Card data goes straight from the phone to Wompi; the backend only ever receives the token.
+ * Mode, public key and API URL come from the backend, so the app ships no payment configuration.
  */
-export function tokenizeCard(card: CardDetails): Promise<CardToken> {
-  return env.paymentGatewayMode === 'LIVE' ? tokenizeWithWompi(card) : tokenizeSimulated(card);
+export function tokenizeCard(card: CardDetails, checkout: WompiCheckout): Promise<CardToken> {
+  return checkout.mode === 'LIVE' ? tokenizeWithWompi(card, checkout) : tokenizeSimulated(card);
 }
 
-async function tokenizeWithWompi(card: CardDetails): Promise<CardToken> {
-  if (!env.wompiApiUrl || !env.wompiPublicKey) {
-    throw new Error('EXPO_PUBLIC_WOMPI_API_URL and EXPO_PUBLIC_WOMPI_PUBLIC_KEY are required in LIVE mode');
+async function tokenizeWithWompi(card: CardDetails, checkout: WompiCheckout): Promise<CardToken> {
+  if (!checkout.apiUrl || !checkout.publicKey) {
+    throw new CardTokenizationError('Wompi checkout is not configured');
   }
 
   let response: Response;
   try {
-    response = await fetch(`${env.wompiApiUrl}/tokens/cards`, {
+    response = await fetch(`${checkout.apiUrl}/tokens/cards`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${env.wompiPublicKey}`,
+        Authorization: `Bearer ${checkout.publicKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -83,7 +83,7 @@ async function tokenizeWithWompi(card: CardDetails): Promise<CardToken> {
   };
 }
 
-/** Matches PAYMENT_GATEWAY_MODE=SIMULATED on the backend: no network call, opaque fake token. */
+/** Matches WOMPI_MODE=SIMULATED on the backend: no network call, opaque fake token. */
 async function tokenizeSimulated(card: CardDetails): Promise<CardToken> {
   const randomPart = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
   return {

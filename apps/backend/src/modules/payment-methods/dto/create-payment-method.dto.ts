@@ -43,6 +43,18 @@ export class CreatePaymentMethodDto {
   @Matches(E164_PHONE_PATTERN, { message: 'walletPhoneNumber must be in E.164 format' })
   walletPhoneNumber?: string;
 
+  /** Wompi (LIVE): acceptance_token of the terms the user accepted in the app. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  acceptanceToken?: string;
+
+  /** Wompi (LIVE): token of the personal data authorization the user accepted. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  personalDataAuthToken?: string;
+
   @ValidateIf(isCard)
   @Matches(/^\d{4}$/, { message: 'last4 must be exactly 4 digits' })
   last4?: string;

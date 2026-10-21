@@ -67,6 +67,12 @@ describe('Payment methods, transactions and the watch', () => {
       expect(after).toHaveLength(1);
     });
 
+    it('reports the simulated Wompi checkout so the app skips real tokenization', async () => {
+      const user = await registerUser(client);
+      const response = await client.get('/payment-methods/providers/wompi', user.accessToken).expect(200);
+      expect(response.body).toEqual({ mode: 'SIMULATED', publicKey: null, apiUrl: null, acceptance: null });
+    });
+
     it('isolates users from each other', async () => {
       const owner = await registerUser(client);
       const stranger = await registerUser(client);

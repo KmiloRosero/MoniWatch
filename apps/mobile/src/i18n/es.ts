@@ -101,6 +101,13 @@ export const copy = {
       cvcLabel: 'CVV',
       cvcPlaceholder: '123',
       securityNote: 'Tu tarjeta se tokeniza con Wompi. Nunca guardamos el número completo ni el CVV.',
+      acceptancePrefix: 'Acepto los ',
+      acceptanceTerms: 'términos y condiciones',
+      acceptanceMiddle: ' de Wompi y autorizo el ',
+      acceptanceData: 'tratamiento de mis datos personales',
+      acceptanceSuffix: '.',
+      acceptanceLabel: 'Aceptar los términos de Wompi y el tratamiento de datos personales',
+      checkoutLoading: 'Conectando con Wompi…',
       submit: 'Vincular tarjeta',
     },
     errors: {
@@ -113,6 +120,8 @@ export const copy = {
       alreadyLinked: 'Este método de pago ya está vinculado a tu cuenta.',
       invalidData: 'Revisa los datos ingresados e intenta de nuevo.',
       tokenization: 'No pudimos validar tu tarjeta con Wompi. Revisa los datos e intenta de nuevo.',
+      acceptanceRequired: 'Acepta los términos de Wompi para continuar.',
+      checkoutUnavailable: 'No pudimos conectar con Wompi. Intenta de nuevo en un momento.',
     },
   },
   pairWatch: {

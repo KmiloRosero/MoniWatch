@@ -33,5 +33,10 @@ export function paymentMethodDetail(method: PaymentMethod): string {
 export function linkErrorMessage(error: unknown): string {
   const errors = copy.addPaymentMethod.errors;
   if (error instanceof CardTokenizationError) return errors.tokenization;
-  return toUserMessage(error, { 400: errors.invalidData, 409: errors.alreadyLinked, 422: errors.invalidData });
+  return toUserMessage(error, {
+    400: errors.invalidData,
+    409: errors.alreadyLinked,
+    422: errors.invalidData,
+    502: errors.checkoutUnavailable,
+  });
 }
