@@ -1,0 +1,24 @@
+name: moniwatch
+# Local development database. Production uses Railway's managed PostgreSQL.
+# Start with: docker compose up -d
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      # Local-only credentials; never reused in any deployed environment.
+      POSTGRES_USER: moniwatch
+      POSTGRES_PASSWORD: moniwatch
+      POSTGRES_DB: moniwatch
+    ports:
+      - '5433:5432' # 5433 on the host: avoids clashing with any local PostgreSQL
+    volumes:
+      - moniwatch-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U moniwatch -d moniwatch']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  moniwatch-postgres:

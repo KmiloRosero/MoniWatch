@@ -1,20 +1,21 @@
 import { execSync } from 'child_process';
-import { rmSync } from 'fs';
-import { join } from 'path';
 
-/** Throwaway database used only by the e2e suite (never the dev or prod database). */
-const TEST_DATABASE_FILE = 'test.db';
-const SQLITE_SIDE_FILES = ['', '-journal', '-wal', '-shm'];
+/** Same server as local development (docker compose), isolated in a throwaway schema per run. */
+const DEFAULT_TEST_DATABASE_BASE_URL = 'postgresql://moniwatch:moniwatch@localhost:5433/moniwatch';
 
-/** Builds a fresh test.db from the migrations once per run. */
+export const TEST_SCHEMA_PREFIX = 'test_';
+
+/**
+ * Creates a fresh schema (test_<timestamp>) with every migration applied.
+ * Workers inherit TEST_DATABASE_URL; global-teardown drops the schema afterwards.
+ */
 export default function globalSetup(): void {
-  const prismaDir = join(__dirname, '..', 'prisma');
-  for (const suffix of SQLITE_SIDE_FILES) {
-    rmSync(join(prismaDir, `${TEST_DATABASE_FILE}${suffix}`), { force: true });
-  }
+  const baseUrl = process.env.TEST_DATABASE_BASE_URL ?? DEFAULT_TEST_DATABASE_BASE_URL;
+  const schema = `${TEST_SCHEMA_PREFIX}${Date.now()}`;
+  const url = `${baseUrl}?schema=${schema}`;
 
-  execSync('npx prisma migrate deploy', {
-    stdio: 'ignore',
-    env: { ...process.env, DATABASE_URL: `file:./${TEST_DATABASE_FILE}` },
-  });
+  process.env.TEST_DATABASE_URL = url;
+  process.env.TEST_DATABASE_SCHEMA = schema;
+
+  execSync('npx prisma migrate deploy', { stdio: 'ignore', env: { ...process.env, DATABASE_URL: url } });
 }

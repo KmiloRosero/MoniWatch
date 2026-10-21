@@ -1,9 +1,10 @@
 // Loaded by Jest before any test file imports AppModule.
-// Real environment variables win over .env, so the tests never touch the dev database.
+// Real environment variables win over .env, so the tests never touch the dev database or schema.
 Object.assign(process.env, {
   NODE_ENV: 'test',
   PORT: '3999', // Never listened on: supertest binds an ephemeral port.
-  DATABASE_URL: 'file:./test.db',
+  // Set by global-setup: a throwaway PostgreSQL schema for this run.
+  DATABASE_URL: process.env.TEST_DATABASE_URL,
   JWT_SECRET: 'test-jwt-secret-that-is-long-enough-1234567890',
   JWT_USER_ACCESS_TTL_SECONDS: '900',
   JWT_DEVICE_ACCESS_TTL_SECONDS: '600',

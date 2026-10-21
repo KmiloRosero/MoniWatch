@@ -153,6 +153,13 @@ export class EnvironmentVariables {
   @Min(200)
   WOMPI_STATUS_POLL_INTERVAL_MS: number;
 
+  /** Reverse proxies in front of the API (Railway: 1). Needed so rate limits see the real client IP. */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(5)
+  TRUST_PROXY_HOPS?: number;
+
   @IsInt()
   @Min(1)
   THROTTLE_TTL_SECONDS: number;

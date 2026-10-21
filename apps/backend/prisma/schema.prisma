@@ -1,6 +1,6 @@
 // =============================================================================
 // MoniWatch - Prisma Schema
-// Database: SQLite (enums and Json supported since Prisma 6.2)
+// Database: PostgreSQL (local: docker compose; production: Railway)
 // Monetary amounts are stored as integers in minor units (cents) to avoid
 // floating point errors. Sensitive provider tokens are stored encrypted
 // (AES-256-GCM envelope encryption); plaintext never touches the database.
@@ -11,7 +11,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
