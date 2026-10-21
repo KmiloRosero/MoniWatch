@@ -61,9 +61,10 @@ services:
 
       - key: NEQUI_MODE
         value: SIMULATED
-      # Change to LIVE in the dashboard once the Wompi keys below are set.
+      # Set in the dashboard: SIMULATED, or LIVE once the Wompi keys below are set.
+      # Not pinned here so a Blueprint sync never reverts it.
       - key: WOMPI_MODE
-        value: SIMULATED
+        sync: false
       - key: PAYMENT_SIMULATOR_APPROVAL_RATE
         value: '0.8'
       - key: PAYMENT_SIMULATOR_LATENCY_MS
