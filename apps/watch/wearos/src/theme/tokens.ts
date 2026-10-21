@@ -59,6 +59,8 @@ export const sizes = {
   chipHeight: 56,
   keyHeight: 48,
   statusMark: 92,
+  /** Error results share the screen with actions, so their mark gives up space. */
+  statusMarkCompact: 56,
   statusStroke: 6,
   spinner: 56,
 } as const;

@@ -29,7 +29,13 @@ const PALETTE: Record<StatusKind, { stroke: string; fill: string }> = {
  * Large result mark: the ring draws itself, then the glyph strokes in.
  * Rare and meaningful (once per payment), so it earns a little more motion.
  */
-export function StatusMark({ kind, accessibilityLabel }: { kind: StatusKind; accessibilityLabel: string }) {
+interface StatusMarkProps {
+  kind: StatusKind;
+  accessibilityLabel: string;
+  compact?: boolean;
+}
+
+export function StatusMark({ kind, accessibilityLabel, compact = false }: StatusMarkProps) {
   const reduceMotion = useReducedMotion();
   const entrance = useRef(new Animated.Value(0)).current;
   const ring = useRef(new Animated.Value(0)).current;
@@ -71,6 +77,7 @@ export function StatusMark({ kind, accessibilityLabel }: { kind: StatusKind; acc
 
   const { paths, length } = GLYPHS[kind];
   const palette = PALETTE[kind];
+  const size = compact ? sizes.statusMarkCompact : sizes.statusMark;
   const scale = entrance.interpolate({ inputRange: [0, 1], outputRange: [motion.enterScale, 1] });
 
   return (
@@ -80,8 +87,8 @@ export function StatusMark({ kind, accessibilityLabel }: { kind: StatusKind; acc
       accessibilityLabel={accessibilityLabel}
       style={[styles.container, { opacity: entrance, transform: [{ scale }] }]}
     >
-      <View style={styles.svg}>
-        <Svg width={sizes.statusMark} height={sizes.statusMark} viewBox={`0 0 ${VIEWBOX} ${VIEWBOX}`}>
+      <View style={{ width: size, height: size }}>
+        <Svg width={size} height={size} viewBox={`0 0 ${VIEWBOX} ${VIEWBOX}`}>
           <Circle cx={CENTER} cy={CENTER} r={RADIUS} fill={palette.fill} />
           <AnimatedCircle
             cx={CENTER}
@@ -119,9 +126,5 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  svg: {
-    width: sizes.statusMark,
-    height: sizes.statusMark,
   },
 });

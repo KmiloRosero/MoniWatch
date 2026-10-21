@@ -123,7 +123,6 @@ function QuickAmount({ value, selected, onPress }: { value: number; selected: bo
       accessibilityRole="button"
       accessibilityLabel={fullLabel}
       accessibilityState={{ selected }}
-      style={styles.quickSlot}
     >
       {({ pressed }) => (
         <Animated.View
@@ -145,7 +144,6 @@ function QuickAmount({ value, selected, onPress }: { value: number; selected: bo
 }
 
 const DOT_SIZE = 8;
-const QUICK_AMOUNTS_PER_ROW = 3;
 
 const styles = StyleSheet.create({
   method: {
@@ -159,14 +157,9 @@ const styles = StyleSheet.create({
     height: DOT_SIZE,
     borderRadius: DOT_SIZE / 2,
   },
+  // Stacked full-width: a row of three does not fit the narrow bottom of a round screen.
   quickRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: spacing.sm,
-  },
-  quickSlot: {
-    flexGrow: 1,
-    flexBasis: `${Math.floor(100 / QUICK_AMOUNTS_PER_ROW) - 4}%`,
   },
   quick: {
     height: sizes.minTouchTarget,

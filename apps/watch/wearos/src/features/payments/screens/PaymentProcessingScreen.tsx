@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { usePreventRemove } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { WatchStackParamList } from '@/app/navigation/types';
@@ -59,22 +59,25 @@ export function PaymentProcessingScreen({ navigation, route }: Props) {
   }
 
   if (state.phase === 'approved') {
+    // Mark, amount and status only: a button would fall off a round screen. Any tap goes home.
     return (
-      <WatchScreen centered>
-        <StatusMark kind="success" accessibilityLabel={t.successTitle} />
-        <WatchText variant="amountSmall" center numberOfLines={1} adjustsFontSizeToFit>
-          {formatMoney(toMajorUnits(state.transaction.amountInCents))}
-        </WatchText>
-        <WatchText variant="caption" tone="success" center accessibilityLiveRegion="assertive">
-          {t.successTitle}
-        </WatchText>
-        <WatchText variant="caption" tone="secondary" center>
-          {t.successDescription(providerLabel)}
-        </WatchText>
-        <View style={styles.actions}>
-          <Chip label={t.done} onPress={finish} />
-        </View>
-      </WatchScreen>
+      <Pressable
+        style={styles.fill}
+        onPress={finish}
+        accessibilityRole="button"
+        accessibilityLabel={`${t.successTitle}, ${formatMoney(toMajorUnits(state.transaction.amountInCents))}`}
+        accessibilityHint={t.successDismissHint}
+      >
+        <WatchScreen centered>
+          <StatusMark kind="success" accessibilityLabel={t.successTitle} />
+          <WatchText variant="amountSmall" center numberOfLines={1} adjustsFontSizeToFit>
+            {formatMoney(toMajorUnits(state.transaction.amountInCents))}
+          </WatchText>
+          <WatchText variant="caption" tone="success" center accessibilityLiveRegion="assertive">
+            {t.successTitle}
+          </WatchText>
+        </WatchScreen>
+      </Pressable>
     );
   }
 
@@ -84,7 +87,7 @@ export function PaymentProcessingScreen({ navigation, route }: Props) {
   return (
     <WatchScreen>
       <View style={styles.result}>
-        <StatusMark kind="error" accessibilityLabel={declined ? t.declinedTitle : t.failedTitle} />
+        <StatusMark compact kind="error" accessibilityLabel={declined ? t.declinedTitle : t.failedTitle} />
         <WatchText variant="title" center accessibilityLiveRegion="assertive">
           {declined ? t.declinedTitle : t.failedTitle}
         </WatchText>
@@ -103,8 +106,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
   },
-  actions: {
-    alignSelf: 'stretch',
-    marginTop: spacing.md,
+  fill: {
+    flex: 1,
   },
 });

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, NetworkError } from '@/services/api/api-error';
 import { pairingApi } from '@/services/api/endpoints';
+import type { PairingRequestResponse } from '@/services/api/types';
 import { toUserMessage } from '@/services/api/error-messages';
 import { toStoredTokens } from '@/services/api/http-client';
 import { haptics } from '@/services/haptics';
@@ -16,6 +17,11 @@ export type PairingState =
 
 const MS_PER_SECOND = 1_000;
 const BACKOFF_FACTOR = 2;
+/** A sleeping free-tier backend needs up to a minute: keep asking before showing an error. */
+const CREATE_REQUEST_ATTEMPTS = 4;
+const CREATE_REQUEST_RETRY_DELAY_MS = 2_000;
+
+const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /**
  * Device authorization flow: request a code, show it, poll until the phone approves it.
@@ -32,7 +38,16 @@ export function useDevicePairing() {
     const start = async () => {
       try {
         const identity = await getDeviceIdentity();
-        const request = await pairingApi.createRequest({ platform: 'WEAR_OS', ...identity });
+        const createRequest = async (attemptNumber: number): Promise<PairingRequestResponse> => {
+          try {
+            return await pairingApi.createRequest({ platform: 'WEAR_OS', ...identity });
+          } catch (error) {
+            if (cancelled || !(error instanceof NetworkError) || attemptNumber >= CREATE_REQUEST_ATTEMPTS) throw error;
+            await wait(CREATE_REQUEST_RETRY_DELAY_MS);
+            return createRequest(attemptNumber + 1);
+          }
+        };
+        const request = await createRequest(1);
         if (cancelled) return;
 
         const expiresAt = Date.parse(request.expiresAt);
