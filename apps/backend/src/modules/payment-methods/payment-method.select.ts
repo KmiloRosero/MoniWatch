@@ -18,4 +18,5 @@ export const paymentMethodPublicSelect = {
   lastUsedAt: true,
   createdAt: true,
   updatedAt: true,
+  merchant: { select: { id: true, name: true, code: true } },
 } satisfies Prisma.PaymentMethodSelect;

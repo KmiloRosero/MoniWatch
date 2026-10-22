@@ -6,6 +6,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   Matches,
   Max,
   MaxLength,
@@ -15,6 +16,7 @@ import {
 import { E164_PHONE_PATTERN } from '../../../common/validation/patterns';
 
 const isCard = (dto: CreatePaymentMethodDto) => dto.type === PaymentMethodType.CARD;
+const isWompi = (dto: CreatePaymentMethodDto) => dto.provider === PaymentProvider.WOMPI;
 
 export class CreatePaymentMethodDto {
   @IsEnum(PaymentProvider)
@@ -22,6 +24,11 @@ export class CreatePaymentMethodDto {
 
   @IsEnum(PaymentMethodType)
   type: PaymentMethodType;
+
+  /** Wompi cards are tokenized against one merchant's account, so the merchant is required. */
+  @ValidateIf(isWompi)
+  @IsUUID()
+  merchantId?: string;
 
   /** Token issued by the provider SDK (e.g. Wompi card token, Nequi subscription token). Never a raw card number. */
   @IsString()

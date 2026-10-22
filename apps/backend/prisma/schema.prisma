@@ -27,11 +27,11 @@ enum UserStatus {
 }
 
 enum DocumentType {
-  CC  // Cedula de ciudadania
-  CE  // Cedula de extranjeria
+  CC // Cedula de ciudadania
+  CE // Cedula de extranjeria
   NIT
-  PP  // Passport
-  TI  // Tarjeta de identidad
+  PP // Passport
+  TI // Tarjeta de identidad
 }
 
 enum PaymentProvider {
@@ -40,8 +40,8 @@ enum PaymentProvider {
 }
 
 enum PaymentMethodType {
-  WALLET        // e.g. Nequi wallet (phone-based)
-  CARD          // Wompi tokenized card
+  WALLET // e.g. Nequi wallet (phone-based)
+  CARD // Wompi tokenized card
   BANK_TRANSFER // Wompi PSE / Bancolombia transfer
 }
 
@@ -87,7 +87,7 @@ enum DeviceSessionStatus {
 }
 
 enum DevicePairingStatus {
-  PENDING  // Code shown on the watch, waiting for the user to enter it on the phone
+  PENDING // Code shown on the watch, waiting for the user to enter it on the phone
   APPROVED // Approved on the phone, waiting for the watch to collect its tokens
   CONSUMED // Tokens delivered to the watch
   EXPIRED
@@ -96,6 +96,12 @@ enum DevicePairingStatus {
 enum MerchantStatus {
   ACTIVE
   INACTIVE
+}
+
+/// Derived from the key prefix: pub_test_ -> SANDBOX, pub_prod_ -> PRODUCTION.
+enum WompiEnvironment {
+  SANDBOX
+  PRODUCTION
 }
 
 enum WebhookProcessingStatus {
@@ -110,34 +116,36 @@ enum WebhookProcessingStatus {
 // -----------------------------------------------------------------------------
 
 model User {
-  id                String       @id @default(uuid())
-  email             String       @unique
-  phoneNumber       String       @unique // E.164 format, required by Nequi
-  passwordHash      String
-  firstName         String
-  lastName          String
-  documentType      DocumentType
-  documentNumber    String
-  status            UserStatus   @default(PENDING_VERIFICATION)
+  id             String       @id @default(uuid())
+  email          String       @unique
+  phoneNumber    String       @unique // E.164 format, required by Nequi
+  passwordHash   String
+  firstName      String
+  lastName       String
+  documentType   DocumentType
+  documentNumber String
+  status         UserStatus   @default(PENDING_VERIFICATION)
 
   // Payment PIN used to confirm payments from the watch
   paymentPinHash    String?
-  failedPinAttempts Int          @default(0)
+  failedPinAttempts Int       @default(0)
   pinLockedUntil    DateTime?
 
-  emailVerifiedAt   DateTime?
-  phoneVerifiedAt   DateTime?
-  lastLoginAt       DateTime?
+  emailVerifiedAt DateTime?
+  phoneVerifiedAt DateTime?
+  lastLoginAt     DateTime?
 
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
-  deletedAt         DateTime?    // Soft delete
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime? // Soft delete
 
-  paymentMethods    PaymentMethod[]
-  transactions      Transaction[]
-  deviceSessions    DeviceSession[]
-  pairingRequests   DevicePairingRequest[]
-  sessions          UserSession[]
+  paymentMethods  PaymentMethod[]
+  transactions    Transaction[]
+  deviceSessions  DeviceSession[]
+  pairingRequests DevicePairingRequest[]
+  sessions        UserSession[]
+  ownedMerchants  Merchant[]             @relation("MerchantOwner")
+  savedMerchants  SavedMerchant[]
 
   @@unique([documentType, documentNumber])
   @@index([status])
@@ -160,7 +168,7 @@ model UserSession {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, revokedAt])
   @@map("user_sessions")
@@ -171,46 +179,50 @@ model UserSession {
 // -----------------------------------------------------------------------------
 
 model PaymentMethod {
-  id                 String              @id @default(uuid())
-  userId             String
-  provider           PaymentProvider
-  type               PaymentMethodType
-  status             PaymentMethodStatus @default(PENDING_VALIDATION)
-  alias              String?             // User-defined label, e.g. "My Nequi"
-  isDefault          Boolean             @default(false)
+  id        String              @id @default(uuid())
+  userId    String
+  provider  PaymentProvider
+  type      PaymentMethodType
+  status    PaymentMethodStatus @default(PENDING_VALIDATION)
+  alias     String? // User-defined label, e.g. "My Nequi"
+  isDefault Boolean             @default(false)
 
   // Non-sensitive display data (safe to render on the watch)
-  displayLabel       String              // e.g. "Nequi ****4321" / "VISA ****1111"
-  last4              String?
-  cardBrand          String?
-  cardExpMonth       Int?
-  cardExpYear        Int?
-  maskedPhoneNumber  String?
+  displayLabel      String // e.g. "Nequi ****4321" / "VISA ****1111"
+  last4             String?
+  cardBrand         String?
+  cardExpMonth      Int?
+  cardExpYear       Int?
+  maskedPhoneNumber String?
 
   // Encrypted provider token (AES-256-GCM)
-  encryptedToken     String              // Base64 ciphertext
-  tokenIv            String              // Base64 initialization vector
-  tokenAuthTag       String              // Base64 GCM authentication tag
-  encryptionKeyId    String              // Key identifier/version for rotation
-  tokenFingerprint   String              // HMAC-SHA256 of the token, used for dedup
-  tokenExpiresAt     DateTime?
+  encryptedToken   String // Base64 ciphertext
+  tokenIv          String // Base64 initialization vector
+  tokenAuthTag     String // Base64 GCM authentication tag
+  encryptionKeyId  String // Key identifier/version for rotation
+  tokenFingerprint String // HMAC-SHA256 of the token, used for dedup
+  tokenExpiresAt   DateTime?
 
   // Provider-side references (e.g. Wompi payment_source_id, Nequi subscription id)
   providerSourceId   String?
   providerCustomerId String?
   providerMetadata   Json?
 
-  lastUsedAt         DateTime?
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  revokedAt          DateTime?
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  revokedAt  DateTime?
 
-  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions       Transaction[]
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Wompi cards are tokenized against one merchant's account and can only be charged by it.
+  merchantId   String?
+  merchant     Merchant?     @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  transactions Transaction[]
 
   @@unique([userId, provider, tokenFingerprint])
   @@index([userId, status])
   @@index([provider, providerSourceId])
+  @@index([merchantId])
   @@map("payment_methods")
 }
 
@@ -225,16 +237,47 @@ model Merchant {
   taxId              String?        @unique // NIT
   category           String?
   status             MerchantStatus @default(ACTIVE)
-  providerMerchantId String?        // Merchant identifier at the payment provider
+  providerMerchantId String? // Merchant identifier at the payment provider
   logoUrl            String?
+  /// Short public code payers type to find the merchant.
+  code               String         @unique
+  /// Null for the platform merchant bootstrapped from environment variables.
+  ownerUserId        String?
 
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+  // Wompi account of the merchant: payments settle directly into it.
+  wompiEnvironment    WompiEnvironment?
+  wompiPublicKey      String?           @unique
+  /// AES-256-GCM encrypted JSON with the private key, integrity secret and events secret.
+  wompiSecrets        String?
+  wompiSecretsIv      String?
+  wompiSecretsAuthTag String?
+  wompiSecretsKeyId   String?
 
-  transactions       Transaction[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner          User?           @relation("MerchantOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  transactions   Transaction[]
+  paymentMethods PaymentMethod[]
+  savedBy        SavedMerchant[]
 
   @@index([status])
+  @@index([ownerUserId])
   @@map("merchants")
+}
+
+/// Merchants a user added in the phone app; the watch offers them as payees.
+model SavedMerchant {
+  userId     String
+  merchantId String
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@id([userId, merchantId])
+  @@index([merchantId])
+  @@map("saved_merchants")
 }
 
 // -----------------------------------------------------------------------------
@@ -242,46 +285,46 @@ model Merchant {
 // -----------------------------------------------------------------------------
 
 model Transaction {
-  id                    String             @id @default(uuid())
-  reference             String             @unique // Internal reference sent to the provider
-  idempotencyKey        String             // Client-generated, prevents double charges
+  id             String @id @default(uuid())
+  reference      String @unique // Internal reference sent to the provider
+  idempotencyKey String // Client-generated, prevents double charges
 
-  userId                String
-  paymentMethodId       String
-  merchantId            String?
-  deviceSessionId       String?            // Set when initiated from the watch
+  userId          String
+  paymentMethodId String
+  merchantId      String?
+  deviceSessionId String? // Set when initiated from the watch
 
-  provider              PaymentProvider
-  channel               TransactionChannel
-  status                TransactionStatus  @default(PENDING)
+  provider PaymentProvider
+  channel  TransactionChannel
+  status   TransactionStatus  @default(PENDING)
 
-  amountInCents         Int
-  feeInCents            Int                @default(0)
-  currency              Currency
-  description           String?
+  amountInCents Int
+  feeInCents    Int      @default(0)
+  currency      Currency
+  description   String?
 
   // Provider response data
   providerTransactionId String?
-  providerStatus        String?            // Raw status string returned by the provider
+  providerStatus        String? // Raw status string returned by the provider
   providerResponse      Json?
   failureCode           String?
   failureReason         String?
 
   // Lifecycle timestamps
-  expiresAt             DateTime?
-  processedAt           DateTime?
-  approvedAt            DateTime?
-  failedAt              DateTime?
-  refundedAt            DateTime?
-  createdAt             DateTime           @default(now())
-  updatedAt             DateTime           @updatedAt
+  expiresAt   DateTime?
+  processedAt DateTime?
+  approvedAt  DateTime?
+  failedAt    DateTime?
+  refundedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  user                  User               @relation(fields: [userId], references: [id], onDelete: Restrict)
-  paymentMethod         PaymentMethod      @relation(fields: [paymentMethodId], references: [id], onDelete: Restrict)
-  merchant              Merchant?          @relation(fields: [merchantId], references: [id], onDelete: SetNull)
-  deviceSession         DeviceSession?     @relation(fields: [deviceSessionId], references: [id], onDelete: SetNull)
-  statusHistory         TransactionStatusHistory[]
-  webhookEvents         WebhookEvent[]
+  user          User                       @relation(fields: [userId], references: [id], onDelete: Restrict)
+  paymentMethod PaymentMethod              @relation(fields: [paymentMethodId], references: [id], onDelete: Restrict)
+  merchant      Merchant?                  @relation(fields: [merchantId], references: [id], onDelete: SetNull)
+  deviceSession DeviceSession?             @relation(fields: [deviceSessionId], references: [id], onDelete: SetNull)
+  statusHistory TransactionStatusHistory[]
+  webhookEvents WebhookEvent[]
 
   @@unique([userId, idempotencyKey])
   @@unique([provider, providerTransactionId])
@@ -292,16 +335,16 @@ model Transaction {
 }
 
 model TransactionStatusHistory {
-  id             String             @id @default(uuid())
-  transactionId  String
-  fromStatus     TransactionStatus?
-  toStatus       TransactionStatus
-  reason         String?
-  source         String             // e.g. "API", "WEBHOOK", "RECONCILIATION_JOB"
-  metadata       Json?
-  createdAt      DateTime           @default(now())
+  id            String             @id @default(uuid())
+  transactionId String
+  fromStatus    TransactionStatus?
+  toStatus      TransactionStatus
+  reason        String?
+  source        String // e.g. "API", "WEBHOOK", "RECONCILIATION_JOB"
+  metadata      Json?
+  createdAt     DateTime           @default(now())
 
-  transaction    Transaction        @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
 
   @@index([transactionId, createdAt])
   @@map("transaction_status_history")
@@ -312,41 +355,41 @@ model TransactionStatusHistory {
 // -----------------------------------------------------------------------------
 
 model DeviceSession {
-  id                        String              @id @default(uuid())
-  userId                    String
-  platform                  DevicePlatform
-  status                    DeviceSessionStatus @default(ACTIVE)
+  id       String              @id @default(uuid())
+  userId   String
+  platform DevicePlatform
+  status   DeviceSessionStatus @default(ACTIVE)
 
   // Device identity
-  deviceId                  String              // Stable hardware/install identifier
-  deviceName                String?
-  deviceModel               String?
-  osVersion                 String?
-  appVersion                String?
-  devicePublicKey           String?             // Used to verify signed payment requests
+  deviceId        String // Stable hardware/install identifier
+  deviceName      String?
+  deviceModel     String?
+  osVersion       String?
+  appVersion      String?
+  devicePublicKey String? // Used to verify signed payment requests
 
-  pairedAt                  DateTime?
+  pairedAt DateTime?
 
   // Session tokens (only hashes are stored)
-  refreshTokenHash          String?             @unique
-  refreshTokenExpiresAt     DateTime?
+  refreshTokenHash      String?   @unique
+  refreshTokenExpiresAt DateTime?
 
   // Watch-specific spending controls (null = use user/global policy)
-  maxAmountPerTransaction   Int?
-  dailyLimitInCents         Int?
-  requirePinAboveInCents    Int?
-  defaultPaymentMethodId    String?
+  maxAmountPerTransaction Int?
+  dailyLimitInCents       Int?
+  requirePinAboveInCents  Int?
+  defaultPaymentMethodId  String?
 
-  lastSeenAt                DateTime?
-  lastIpAddress             String?
-  revokedAt                 DateTime?
-  revokedReason             String?
-  createdAt                 DateTime            @default(now())
-  updatedAt                 DateTime            @updatedAt
+  lastSeenAt    DateTime?
+  lastIpAddress String?
+  revokedAt     DateTime?
+  revokedReason String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  user                      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions              Transaction[]
-  pairingRequests           DevicePairingRequest[]
+  user            User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions    Transaction[]
+  pairingRequests DevicePairingRequest[]
 
   @@unique([userId, deviceId])
   @@index([userId, status])
@@ -361,10 +404,10 @@ model DeviceSession {
 // -----------------------------------------------------------------------------
 
 model DevicePairingRequest {
-  id              String              @id @default(uuid())
-  status          DevicePairingStatus @default(PENDING)
-  userCodeHash    String              @unique // Short code shown on the watch (hash only)
-  deviceCodeHash  String              @unique // Secret kept by the watch for polling (hash only)
+  id             String              @id @default(uuid())
+  status         DevicePairingStatus @default(PENDING)
+  userCodeHash   String              @unique // Short code shown on the watch (hash only)
+  deviceCodeHash String              @unique // Secret kept by the watch for polling (hash only)
 
   platform        DevicePlatform
   deviceId        String
@@ -374,18 +417,18 @@ model DevicePairingRequest {
   appVersion      String?
   devicePublicKey String?
 
-  userId          String?             // Set on approval
-  deviceSessionId String?             // Set when the tokens are issued
+  userId          String? // Set on approval
+  deviceSessionId String? // Set when the tokens are issued
 
-  expiresAt       DateTime
-  lastPolledAt    DateTime?
-  approvedAt      DateTime?
-  consumedAt      DateTime?
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  expiresAt    DateTime
+  lastPolledAt DateTime?
+  approvedAt   DateTime?
+  consumedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  user            User?               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  deviceSession   DeviceSession?      @relation(fields: [deviceSessionId], references: [id], onDelete: SetNull)
+  user          User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceSession DeviceSession? @relation(fields: [deviceSessionId], references: [id], onDelete: SetNull)
 
   @@index([status, expiresAt])
   @@map("device_pairing_requests")
@@ -408,7 +451,7 @@ model WebhookEvent {
   receivedAt       DateTime                @default(now())
   processedAt      DateTime?
 
-  transaction      Transaction?            @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
 
   @@unique([provider, providerEventId])
   @@index([processingStatus])

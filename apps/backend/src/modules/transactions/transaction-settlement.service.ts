@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Prisma, TransactionStatus } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { PaymentProviderFactory } from '../../payment-providers/payment-provider.factory';
+import { MerchantAccountsService } from '../merchants/merchant-accounts.service';
 import { ChargeOutcome, ChargeResult } from '../../payment-providers/payment-provider.interface';
 import { OPEN_STATUSES, TransitionSource } from './transaction.constants';
 import { TransactionStateService } from './transaction-state.service';
@@ -18,6 +19,7 @@ export class TransactionSettlementService {
     private readonly prisma: PrismaService,
     private readonly state: TransactionStateService,
     private readonly providers: PaymentProviderFactory,
+    private readonly merchantAccounts: MerchantAccountsService,
   ) {}
 
   async apply(transactionId: string, result: ChargeResult, source: TransitionSource): Promise<void> {
@@ -59,7 +61,7 @@ export class TransactionSettlementService {
   async reconcile(transactionId: string): Promise<boolean> {
     const transaction = await this.prisma.transaction.findUnique({
       where: { id: transactionId },
-      select: { status: true, provider: true, providerTransactionId: true },
+      select: { status: true, provider: true, providerTransactionId: true, merchantId: true },
     });
     if (!transaction || !OPEN_STATUSES.includes(transaction.status) || !transaction.providerTransactionId) {
       return false;
@@ -69,7 +71,8 @@ export class TransactionSettlementService {
     if (!adapter.getChargeStatus) return false;
 
     try {
-      const result = await adapter.getChargeStatus(transaction.providerTransactionId);
+      const account = transaction.merchantId ? await this.merchantAccounts.load(transaction.merchantId) : null;
+      const result = await adapter.getChargeStatus(transaction.providerTransactionId, account);
       if (result.outcome === ChargeOutcome.Pending) return false;
       await this.apply(transactionId, result, TransitionSource.Reconciliation);
       return true;

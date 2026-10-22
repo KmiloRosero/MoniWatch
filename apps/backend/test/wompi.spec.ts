@@ -4,8 +4,8 @@ import { Currency, PaymentMethodStatus, PaymentMethodType } from '@prisma/client
 import { createHash } from 'crypto';
 import { EnvironmentVariables } from '../src/config/env.validation';
 import { PaymentGatewaySimulator } from '../src/payment-providers/payment-gateway.simulator';
-import { ChargeInput, ChargeOutcome } from '../src/payment-providers/payment-provider.interface';
-import { WompiApiError, WompiClient, WompiTransaction } from '../src/payment-providers/wompi/wompi.client';
+import { ChargeInput, ChargeOutcome, MerchantGatewayAccount } from '../src/payment-providers/payment-provider.interface';
+import { integritySignature, WompiApiError, WompiClient, WompiTransaction } from '../src/payment-providers/wompi/wompi.client';
 import { WompiProvider } from '../src/payment-providers/wompi/wompi.provider';
 
 function configWith(values: Record<string, unknown>): ConfigService<EnvironmentVariables, true> {
@@ -16,11 +16,16 @@ const liveConfig = configWith({
   WOMPI_MODE: 'LIVE',
   WOMPI_STATUS_POLL_ATTEMPTS: 3,
   WOMPI_STATUS_POLL_INTERVAL_MS: 1,
-  WOMPI_API_URL: 'https://sandbox.wompi.co/v1',
-  WOMPI_PUBLIC_KEY: 'pub_test_example',
-  WOMPI_PRIVATE_KEY: 'prv_test_example',
-  WOMPI_INTEGRITY_SECRET: 'test_integrity_example',
 });
+
+const account: MerchantGatewayAccount = {
+  merchantId: 'merchant-1',
+  apiUrl: 'https://sandbox.wompi.co/v1',
+  publicKey: 'pub_test_example',
+  privateKey: 'prv_test_example',
+  integritySecret: 'test_integrity_example',
+  eventsSecret: 'test_events_example',
+};
 
 const transaction = (status: WompiTransaction['status']): WompiTransaction => ({
   id: '1234-1610641025-49201',
@@ -39,6 +44,7 @@ const chargeInput: ChargeInput = {
   credentials: { providerToken: 'tok_test_1', walletPhoneNumber: null },
   providerSourceId: '3891',
   customer: { email: 'ana@example.com', phoneNumber: '+573001234567', fullName: 'Ana Diaz' },
+  account,
 };
 
 function fakeClient() {
@@ -47,8 +53,8 @@ function fakeClient() {
     getTransaction: jest.fn(),
     createCardPaymentSource: jest.fn(),
     getAcceptance: jest.fn(),
-    merchantPublicKey: 'pub_test_example',
-    baseUrl: 'https://sandbox.wompi.co/v1',
+    getMerchantInfo: jest.fn(),
+    verifyPrivateKey: jest.fn(),
   };
 }
 
@@ -66,6 +72,7 @@ describe('WompiProvider (LIVE)', () => {
 
     expect(result).toMatchObject({ outcome: ChargeOutcome.Approved, providerTransactionId: '1234-1610641025-49201' });
     expect(client.createTransaction).toHaveBeenCalledWith(
+      account,
       expect.objectContaining({ reference: 'ref-1', amountInCents: 2_000_000, paymentSourceId: 3891 }),
     );
   });
@@ -117,6 +124,7 @@ describe('WompiProvider (LIVE)', () => {
       type: PaymentMethodType.CARD,
       credentials: { providerToken: 'tok_test_1', walletPhoneNumber: null },
       customer: chargeInput.customer,
+      account,
     };
 
     await expect(provider.createPaymentSource({ ...base, acceptance: null })).rejects.toBeInstanceOf(BadRequestException);
@@ -127,7 +135,7 @@ describe('WompiProvider (LIVE)', () => {
       acceptance: { acceptanceToken: 'acc', personalDataAuthToken: 'pda' },
     });
     expect(source).toMatchObject({ providerSourceId: '3891', status: PaymentMethodStatus.ACTIVE });
-    expect(client.createCardPaymentSource).toHaveBeenCalledWith({
+    expect(client.createCardPaymentSource).toHaveBeenCalledWith(account, {
       cardToken: 'tok_test_1',
       customerEmail: 'ana@example.com',
       acceptanceToken: 'acc',
@@ -144,13 +152,29 @@ describe('WompiProvider (LIVE)', () => {
       personalDataUrl: 'https://wompi.example/data.pdf',
     });
 
-    const config = await liveProvider(client).getCheckoutConfig();
+    const config = await liveProvider(client).getCheckoutConfig(account);
     expect(config).toMatchObject({ mode: 'LIVE', publicKey: 'pub_test_example', acceptance: { acceptanceToken: 'acc' } });
+    expect(client.getAcceptance).toHaveBeenCalledWith(account);
+  });
+
+  it('refuses to charge a card that is not linked to a merchant account', async () => {
+    const result = liveProvider(fakeClient()).charge({ ...chargeInput, account: null });
+    await expect(result).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('verifies a merchant account: active business and accepted private key', async () => {
+    const client = fakeClient();
+    client.getMerchantInfo.mockResolvedValue({ name: 'Merca Justo', active: true, acceptance: {} });
+    client.verifyPrivateKey.mockResolvedValue(true);
+    await expect(liveProvider(client).verifyAccount(account)).resolves.toEqual({ name: 'Merca Justo', active: true });
+
+    client.verifyPrivateKey.mockResolvedValue(false);
+    await expect(liveProvider(client).verifyAccount(account)).rejects.toBeInstanceOf(BadRequestException);
   });
 });
 
 describe('WompiClient', () => {
-  const client = new WompiClient(liveConfig);
+  const client = new WompiClient();
   const originalFetch = global.fetch;
 
   afterEach(() => {
@@ -159,7 +183,7 @@ describe('WompiClient', () => {
 
   it('builds the integrity signature as lowercase SHA256(reference + amount + currency + secret)', () => {
     const expected = createHash('sha256').update('ref-12000000COPtest_integrity_example').digest('hex');
-    expect(client.integritySignature('ref-1', 2_000_000, 'COP')).toBe(expected);
+    expect(integritySignature(account.integritySecret, 'ref-1', 2_000_000, 'COP')).toBe(expected);
   });
 
   it('reads acceptance tokens from /merchants/info with the public key header', async () => {
@@ -176,7 +200,7 @@ describe('WompiClient', () => {
     );
     global.fetch = fetchMock as unknown as typeof fetch;
 
-    const acceptance = await new WompiClient(liveConfig).getAcceptance();
+    const acceptance = await new WompiClient().getAcceptance(account);
 
     expect(acceptance).toEqual({ acceptanceToken: 'acc', termsUrl: 'https://t', personalDataAuthToken: 'pda', personalDataUrl: 'https://p' });
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -189,6 +213,6 @@ describe('WompiClient', () => {
       new Response(JSON.stringify({ error: { type: 'INPUT_VALIDATION_ERROR', reason: 'invalid token' } }), { status: 422 }),
     ) as unknown as typeof fetch;
 
-    await expect(client.getTransaction('x')).rejects.toMatchObject({ status: 422, type: 'INPUT_VALIDATION_ERROR' });
+    await expect(client.getTransaction(account, 'x')).rejects.toMatchObject({ status: 422, type: 'INPUT_VALIDATION_ERROR' });
   });
 });

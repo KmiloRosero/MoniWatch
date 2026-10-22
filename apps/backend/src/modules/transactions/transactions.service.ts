@@ -26,6 +26,7 @@ import {
   ProviderCustomer,
 } from '../../payment-providers/payment-provider.interface';
 import { PaymentPinService } from '../auth/services/payment-pin.service';
+import { MerchantAccountsService } from '../merchants/merchant-accounts.service';
 import { AuthPrincipal } from '../auth/types/auth-principal';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { TransactionSettlementService } from './transaction-settlement.service';
@@ -54,6 +55,7 @@ const chargeablePaymentMethodSelect = {
   encryptionKeyId: true,
   providerSourceId: true,
   tokenExpiresAt: true,
+  merchantId: true,
 } satisfies Prisma.PaymentMethodSelect;
 
 type ChargeablePaymentMethod = Prisma.PaymentMethodGetPayload<{
@@ -82,6 +84,7 @@ export class TransactionsService {
     private readonly paymentPin: PaymentPinService,
     private readonly state: TransactionStateService,
     private readonly settlement: TransactionSettlementService,
+    private readonly merchantAccounts: MerchantAccountsService,
     config: ConfigService<EnvironmentVariables, true>,
   ) {
     this.expirationMs = config.get('TRANSACTION_EXPIRATION_MINUTES', { infer: true }) * MS_PER_MINUTE;
@@ -111,8 +114,9 @@ export class TransactionsService {
       dto.paymentMethodId ?? device?.defaultPaymentMethodId ?? null,
     );
 
-    if (dto.merchantId) {
-      await this.assertMerchantActive(dto.merchantId);
+    const merchantId = this.resolveMerchantId(paymentMethod, dto);
+    if (merchantId) {
+      await this.assertMerchantActive(merchantId);
     }
 
     if (device) {
@@ -128,7 +132,7 @@ export class TransactionsService {
           idempotencyKey: dto.idempotencyKey,
           userId,
           paymentMethodId: paymentMethod.id,
-          merchantId: dto.merchantId,
+          merchantId,
           deviceSessionId: device?.id,
           provider: paymentMethod.provider,
           channel: device ? TransactionChannel.WATCH : TransactionChannel.MOBILE,
@@ -159,7 +163,7 @@ export class TransactionsService {
     await this.state.transition(transactionId, TransactionStatus.PENDING, TransactionStatus.PROCESSING, TransitionSource.Api);
 
     const customer = await this.loadCustomer(userId);
-    const result = await this.charge(paymentMethod, reference, dto, customer);
+    const result = await this.charge(paymentMethod, merchantId, reference, dto, customer);
     await this.settlement.apply(transactionId, result, TransitionSource.Provider);
     await this.touchUsage(paymentMethod.id, device?.id ?? null);
 
@@ -211,7 +215,8 @@ export class TransactionsService {
     const differs =
       existing.amountInCents !== dto.amountInCents ||
       existing.currency !== dto.currency ||
-      (dto.paymentMethodId !== undefined && existing.paymentMethod.id !== dto.paymentMethodId);
+      (dto.paymentMethodId !== undefined && existing.paymentMethod.id !== dto.paymentMethodId) ||
+      (dto.merchantId !== undefined && existing.merchant?.id !== dto.merchantId);
 
     if (differs) {
       throw new ConflictException('Idempotency key was already used with different payment parameters');
@@ -243,6 +248,14 @@ export class TransactionsService {
     }
 
     return paymentMethod;
+  }
+
+  /** A card tokenized for one merchant can only pay that merchant; wallets can pay any. */
+  private resolveMerchantId(paymentMethod: ChargeablePaymentMethod, dto: CreateTransactionDto): string | null {
+    if (paymentMethod.merchantId && dto.merchantId && paymentMethod.merchantId !== dto.merchantId) {
+      throw new UnprocessableEntityException('This payment method belongs to a different merchant');
+    }
+    return paymentMethod.merchantId ?? dto.merchantId ?? null;
   }
 
   private async assertMerchantActive(merchantId: string): Promise<void> {
@@ -295,6 +308,7 @@ export class TransactionsService {
   /** Never throws: any provider or decryption error becomes an ERROR outcome. */
   private async charge(
     paymentMethod: ChargeablePaymentMethod,
+    merchantId: string | null,
     reference: string,
     dto: CreateTransactionDto,
     customer: ProviderCustomer,
@@ -308,6 +322,7 @@ export class TransactionsService {
           keyId: paymentMethod.encryptionKeyId,
         }),
       ) as ProviderCredentials;
+      const account = merchantId ? await this.merchantAccounts.load(merchantId) : null;
 
       return await this.providers.get(paymentMethod.provider).charge({
         reference,
@@ -317,6 +332,7 @@ export class TransactionsService {
         credentials,
         providerSourceId: paymentMethod.providerSourceId,
         customer,
+        account,
       });
     } catch (error) {
       this.logger.error(

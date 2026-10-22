@@ -9,6 +9,8 @@ import {
   ChargeResult,
   CheckoutConfig,
   CreatePaymentSourceInput,
+  GatewayAccountInfo,
+  MerchantGatewayAccount,
   PaymentProviderAdapter,
   PaymentSourceResult,
 } from '../payment-provider.interface';
@@ -48,12 +50,22 @@ export class WompiProvider implements PaymentProviderAdapter {
     return this.mode === ProviderMode.Live;
   }
 
-  async getCheckoutConfig(): Promise<CheckoutConfig> {
+  async getCheckoutConfig(account: MerchantGatewayAccount): Promise<CheckoutConfig> {
     if (!this.isLive) {
       return { mode: 'SIMULATED', publicKey: null, apiUrl: null, acceptance: null };
     }
-    const acceptance = await this.wrap(() => this.client.getAcceptance());
-    return { mode: 'LIVE', publicKey: this.client.merchantPublicKey, apiUrl: this.client.baseUrl, acceptance };
+    const acceptance = await this.wrap(() => this.client.getAcceptance(account));
+    return { mode: 'LIVE', publicKey: account.publicKey, apiUrl: account.apiUrl, acceptance };
+  }
+
+  /** A merchant's keys must open an active account and the private key must be accepted. */
+  async verifyAccount(account: Omit<MerchantGatewayAccount, 'merchantId'>): Promise<GatewayAccountInfo> {
+    const info = await this.wrap(() => this.client.getMerchantInfo(account));
+    const privateKeyValid = await this.wrap(() => this.client.verifyPrivateKey(account));
+    if (!privateKeyValid) {
+      throw new BadRequestException('Wompi rejected the private key');
+    }
+    return { name: info.name, active: info.active };
   }
 
   async createPaymentSource(input: CreatePaymentSourceInput): Promise<PaymentSourceResult> {
@@ -72,9 +84,10 @@ export class WompiProvider implements PaymentProviderAdapter {
       throw new BadRequestException('Wompi terms must be accepted to save a card');
     }
     const acceptance = input.acceptance;
+    const account = this.requireAccount(input.account);
 
     const source = await this.wrap(() =>
-      this.client.createCardPaymentSource({
+      this.client.createCardPaymentSource(account, {
         cardToken: input.credentials.providerToken,
         customerEmail: input.customer.email,
         acceptanceToken: acceptance.acceptanceToken,
@@ -98,10 +111,11 @@ export class WompiProvider implements PaymentProviderAdapter {
     if (!Number.isInteger(paymentSourceId)) {
       throw new BadRequestException('Card has no Wompi payment source');
     }
+    const account = this.requireAccount(input.account);
 
     let transaction: WompiTransaction;
     try {
-      transaction = await this.client.createTransaction({
+      transaction = await this.client.createTransaction(account, {
         reference: input.reference,
         amountInCents: input.amountInCents,
         currency: input.currency,
@@ -122,7 +136,7 @@ export class WompiProvider implements PaymentProviderAdapter {
     for (let attempt = 0; attempt < this.pollAttempts && transaction.status === 'PENDING'; attempt++) {
       await new Promise((resolve) => setTimeout(resolve, this.pollIntervalMs));
       try {
-        transaction = await this.client.getTransaction(transaction.id);
+        transaction = await this.client.getTransaction(account, transaction.id);
       } catch {
         break; // Keep it PENDING with its Wompi id; reconciliation finishes the job.
       }
@@ -153,7 +167,7 @@ export class WompiProvider implements PaymentProviderAdapter {
     };
   }
 
-  async getChargeStatus(providerTransactionId: string): Promise<ChargeResult> {
+  async getChargeStatus(providerTransactionId: string, account: MerchantGatewayAccount | null): Promise<ChargeResult> {
     if (!this.isLive) {
       // The simulator settles synchronously, so there is never anything to reconcile.
       return {
@@ -165,7 +179,18 @@ export class WompiProvider implements PaymentProviderAdapter {
         rawResponse: { simulated: true },
       };
     }
-    return this.toChargeResult(await this.wrap(() => this.client.getTransaction(providerTransactionId)));
+    const merchantAccount = this.requireAccount(account);
+    return this.toChargeResult(
+      await this.wrap(() => this.client.getTransaction(merchantAccount, providerTransactionId)),
+    );
+  }
+
+  /** Wompi tokenizes and charges per merchant, so every live call needs the merchant's account. */
+  private requireAccount(account: MerchantGatewayAccount | null): MerchantGatewayAccount {
+    if (!account) {
+      throw new BadRequestException('This card is not linked to a merchant Wompi account');
+    }
+    return account;
   }
 
   private toChargeResult(transaction: WompiTransaction): ChargeResult {

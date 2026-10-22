@@ -69,9 +69,14 @@ services:
         value: '0.8'
       - key: PAYMENT_SIMULATOR_LATENCY_MS
         value: '400'
-      # Must match the key environment: pub_prod_ keys -> production, pub_test_ keys -> sandbox.
-      - key: WOMPI_API_URL
+      # A merchant's keys pick the environment (pub_test_ -> sandbox, pub_prod_ -> production).
+      - key: WOMPI_SANDBOX_API_URL
+        value: https://sandbox.wompi.co/v1
+      - key: WOMPI_PRODUCTION_API_URL
         value: https://production.wompi.co/v1
+      - key: MERCHANT_CODE_LENGTH
+        value: '6'
+      # Optional platform merchant registered at startup (all four or none).
       - key: WOMPI_PUBLIC_KEY
         sync: false
       - key: WOMPI_PRIVATE_KEY

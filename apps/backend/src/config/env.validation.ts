@@ -121,11 +121,19 @@ export class EnvironmentVariables {
   @Min(0)
   PAYMENT_SIMULATOR_LATENCY_MS: number;
 
-  /** https://sandbox.wompi.co/v1 or https://production.wompi.co/v1 */
-  @IsOptional()
+  /** Wompi API used by merchants whose keys start with pub_test_. */
   @IsUrl({ require_tld: true, protocols: ['https'] })
-  WOMPI_API_URL?: string;
+  WOMPI_SANDBOX_API_URL: string;
 
+  /** Wompi API used by merchants whose keys start with pub_prod_. */
+  @IsUrl({ require_tld: true, protocols: ['https'] })
+  WOMPI_PRODUCTION_API_URL: string;
+
+  /**
+   * Optional platform merchant: when the four WOMPI_* keys are set, the API registers
+   * (or updates) that Wompi account as a merchant on startup. Each merchant can also
+   * register its own keys from the phone app.
+   */
   @IsOptional()
   @IsString()
   WOMPI_PUBLIC_KEY?: string;
@@ -138,7 +146,7 @@ export class EnvironmentVariables {
   @IsString()
   WOMPI_INTEGRITY_SECRET?: string;
 
-  /** Secret from the Wompi dashboard used to verify event checksums. Webhooks answer 503 without it. */
+  /** Events secret of the platform merchant (each merchant's events are verified with its own secret). */
   @IsOptional()
   @IsString()
   WOMPI_EVENTS_SECRET?: string;
@@ -152,6 +160,12 @@ export class EnvironmentVariables {
   @IsInt()
   @Min(200)
   WOMPI_STATUS_POLL_INTERVAL_MS: number;
+
+  /** Length of the public code payers type to find a merchant. */
+  @IsInt()
+  @Min(4)
+  @Max(12)
+  MERCHANT_CODE_LENGTH: number;
 
   /** Reverse proxies in front of the API (Railway: 1). Needed so rate limits see the real client IP. */
   @IsOptional()
@@ -174,11 +188,11 @@ export class EnvironmentVariables {
   THROTTLE_SENSITIVE_LIMIT: number;
 }
 
-const WOMPI_LIVE_REQUIRED = [
-  'WOMPI_API_URL',
+const WOMPI_PLATFORM_MERCHANT_KEYS = [
   'WOMPI_PUBLIC_KEY',
   'WOMPI_PRIVATE_KEY',
   'WOMPI_INTEGRITY_SECRET',
+  'WOMPI_EVENTS_SECRET',
 ] as const satisfies ReadonlyArray<keyof EnvironmentVariables>;
 
 export function validateEnvironment(config: Record<string, unknown>): EnvironmentVariables {
@@ -191,9 +205,11 @@ export function validateEnvironment(config: Record<string, unknown>): Environmen
     (error) => `${error.property}: ${Object.values(error.constraints ?? {}).join(', ')}`,
   );
 
-  if (validated.WOMPI_MODE === ProviderMode.Live) {
-    for (const key of WOMPI_LIVE_REQUIRED) {
-      if (!validated[key]) details.push(`${key}: required when WOMPI_MODE=LIVE`);
+  // The platform merchant is all-or-nothing: a partial key set is a configuration mistake.
+  const platformKeysSet = WOMPI_PLATFORM_MERCHANT_KEYS.filter((key) => Boolean(validated[key]));
+  if (platformKeysSet.length > 0 && platformKeysSet.length < WOMPI_PLATFORM_MERCHANT_KEYS.length) {
+    for (const key of WOMPI_PLATFORM_MERCHANT_KEYS) {
+      if (!validated[key]) details.push(`${key}: required when any other WOMPI_* key is set`);
     }
   }
 

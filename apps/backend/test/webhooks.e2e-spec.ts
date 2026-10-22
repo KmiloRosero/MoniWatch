@@ -4,18 +4,21 @@ import { randomUUID } from 'crypto';
 import { PrismaService } from '../src/infrastructure/prisma/prisma.service';
 import { TransactionExpirationService } from '../src/modules/transactions/transaction-expiration.service';
 import { computeWompiChecksum, WompiEvent } from '../src/modules/webhooks/wompi-signature';
-import { api, Api, createTestApp, registerUser } from './helpers';
+import { api, Api, cardFor, createTestApp, registerMerchant, registerUser, TestMerchant } from './helpers';
 
 describe('Wompi webhooks and expiration sweep', () => {
   let app: INestApplication;
   let client: Api;
   let prisma: PrismaService;
-  const secret = process.env.WOMPI_EVENTS_SECRET!;
+  let merchant: TestMerchant;
+  let secret: string;
 
   beforeAll(async () => {
     app = await createTestApp();
     client = api(app);
     prisma = app.get(PrismaService);
+    merchant = await registerMerchant(client, (await registerUser(client)).accessToken);
+    secret = merchant.eventsSecret;
   });
 
   afterAll(async () => {
@@ -25,11 +28,7 @@ describe('Wompi webhooks and expiration sweep', () => {
   /** An in-flight Wompi transaction, as an asynchronous live charge would leave it. */
   async function openWompiTransaction(status: TransactionStatus = TransactionStatus.PROCESSING, expiresAt?: Date) {
     const user = await registerUser(client);
-    const card = await client
-      .post('/payment-methods', {
-        provider: 'WOMPI', type: 'CARD', providerToken: `tok_${randomUUID()}`, last4: '4242', cardBrand: 'VISA', cardExpMonth: 12, cardExpYear: new Date().getFullYear() + 2,
-      }, user.accessToken)
-      .expect(201);
+    const card = await client.post('/payment-methods', cardFor(merchant.id), user.accessToken).expect(201);
     const me = await client.get('/auth/me', user.accessToken).expect(200);
 
     return prisma.transaction.create({
@@ -38,6 +37,7 @@ describe('Wompi webhooks and expiration sweep', () => {
         idempotencyKey: randomUUID(),
         userId: me.body.id,
         paymentMethodId: card.body.id,
+        merchantId: merchant.id,
         provider: PaymentProvider.WOMPI,
         channel: TransactionChannel.MOBILE,
         status,
@@ -100,6 +100,17 @@ describe('Wompi webhooks and expiration sweep', () => {
     expect(stored.status).toBe(TransactionStatus.PROCESSING);
     const audit = await prisma.webhookEvent.findFirst({ where: { providerEventId: event.signature.checksum } });
     expect(audit?.signatureValid).toBe(false);
+  });
+
+  it("ignores an event signed with another merchant's secret", async () => {
+    const transaction = await openWompiTransaction();
+    const otherMerchant = await registerMerchant(client, (await registerUser(client)).accessToken, 'Otra Tienda');
+    const event = signedEvent(transaction, 'APPROVED');
+    event.signature.checksum = computeWompiChecksum(event, otherMerchant.eventsSecret);
+
+    await client.post('/webhooks/wompi', event).expect(200);
+    const stored = await prisma.transaction.findUniqueOrThrow({ where: { id: transaction.id } });
+    expect(stored.status).toBe(TransactionStatus.PROCESSING);
   });
 
   it('refuses to approve when the amount does not match', async () => {

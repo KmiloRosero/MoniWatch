@@ -12,6 +12,25 @@ export interface ProviderCustomer {
   fullName: string;
 }
 
+/**
+ * A merchant's account at the gateway (decrypted, in memory only). Charges made with it
+ * settle directly into that merchant's account.
+ */
+export interface MerchantGatewayAccount {
+  merchantId: string;
+  apiUrl: string;
+  publicKey: string;
+  privateKey: string;
+  integritySecret: string;
+  eventsSecret: string;
+}
+
+/** What the gateway says about an account when a merchant registers it. */
+export interface GatewayAccountInfo {
+  name: string;
+  active: boolean;
+}
+
 /** Legal acceptance the end user gave in the app (Wompi: terms + personal data authorization). */
 export interface ProviderAcceptance {
   acceptanceToken: string;
@@ -23,6 +42,8 @@ export interface CreatePaymentSourceInput {
   credentials: ProviderCredentials;
   customer: ProviderCustomer;
   acceptance: ProviderAcceptance | null;
+  /** Required by gateways that tokenize per merchant (Wompi). */
+  account: MerchantGatewayAccount | null;
 }
 
 export interface PaymentSourceResult {
@@ -41,6 +62,7 @@ export interface ChargeInput {
   credentials: ProviderCredentials;
   providerSourceId: string | null;
   customer: ProviderCustomer;
+  account: MerchantGatewayAccount | null;
 }
 
 export enum ChargeOutcome {
@@ -79,6 +101,8 @@ export interface PaymentProviderAdapter {
   createPaymentSource(input: CreatePaymentSourceInput): Promise<PaymentSourceResult>;
   charge(input: ChargeInput): Promise<ChargeResult>;
   /** Asks the provider for the current state of a charge (reconciliation). */
-  getChargeStatus?(providerTransactionId: string): Promise<ChargeResult>;
-  getCheckoutConfig?(): Promise<CheckoutConfig>;
+  getChargeStatus?(providerTransactionId: string, account: MerchantGatewayAccount | null): Promise<ChargeResult>;
+  getCheckoutConfig?(account: MerchantGatewayAccount): Promise<CheckoutConfig>;
+  /** Checks a merchant's keys against the gateway before they are stored. */
+  verifyAccount?(account: Omit<MerchantGatewayAccount, 'merchantId'>): Promise<GatewayAccountInfo>;
 }

@@ -10,7 +10,6 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import { PaymentProvider } from '@prisma/client';
 import { AllowPrincipals, CurrentPrincipal } from '../auth/decorators/auth.decorators';
 import { AuthPrincipal, PrincipalKind } from '../auth/types/auth-principal';
 import { CreatePaymentMethodDto } from './dto/create-payment-method.dto';
@@ -23,12 +22,6 @@ export class PaymentMethodsController {
   @Post()
   create(@CurrentPrincipal() principal: AuthPrincipal, @Body() dto: CreatePaymentMethodDto) {
     return this.paymentMethodsService.create(principal.userId, dto);
-  }
-
-  /** Declared before ':id' so it is never parsed as a payment method id. */
-  @Get('providers/wompi')
-  wompiCheckout() {
-    return this.paymentMethodsService.getCheckoutConfig(PaymentProvider.WOMPI);
   }
 
   @AllowPrincipals(PrincipalKind.User, PrincipalKind.Device)

@@ -1,17 +1,11 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  ServiceUnavailableException,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PaymentProvider, Prisma, TransactionStatus, WebhookProcessingStatus } from '@prisma/client';
-import { EnvironmentVariables } from '../../config/env.validation';
 import { isUniqueViolation } from '../../infrastructure/prisma/prisma-errors';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import { MerchantAccountsService } from '../merchants/merchant-accounts.service';
 import { OPEN_STATUSES, TransitionSource } from '../transactions/transaction.constants';
 import { TransactionStateService } from '../transactions/transaction-state.service';
-import { isValidWompiSignature, isWompiEvent, WompiEvent } from './wompi-signature';
+import { isValidWompiSignature, isWompiEvent, WompiEvent, WompiTransactionPayload } from './wompi-signature';
 
 const WOMPI_TRANSACTION_UPDATED = 'transaction.updated';
 
@@ -23,6 +17,13 @@ const WOMPI_STATUS_MAP: Record<string, { to: TransactionStatus; from: Transactio
   VOIDED: { to: TransactionStatus.VOIDED, from: [...OPEN_STATUSES, TransactionStatus.APPROVED] },
 };
 
+interface MatchedTransaction {
+  id: string;
+  amountInCents: number;
+  currency: string;
+  merchantId: string | null;
+}
+
 export interface WebhookAck {
   received: true;
   duplicate?: boolean;
@@ -31,36 +32,38 @@ export interface WebhookAck {
 @Injectable()
 export class WebhooksService {
   private readonly logger = new Logger(WebhooksService.name);
-  private readonly wompiEventsSecret: string | null;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly state: TransactionStateService,
-    config: ConfigService<EnvironmentVariables, true>,
-  ) {
-    this.wompiEventsSecret = config.get('WOMPI_EVENTS_SECRET', { infer: true }) || null;
-  }
+    private readonly merchantAccounts: MerchantAccountsService,
+  ) {}
 
+  /**
+   * Every merchant points its Wompi events URL here. The event names our reference, which
+   * leads to the merchant, whose own events secret must have signed it.
+   */
   async handleWompiEvent(body: unknown): Promise<WebhookAck> {
-    if (!this.wompiEventsSecret) {
-      throw new ServiceUnavailableException('Wompi events are not configured');
-    }
     if (!isWompiEvent(body)) {
       throw new BadRequestException('Malformed Wompi event');
     }
 
-    const signatureValid = isValidWompiSignature(body, this.wompiEventsSecret);
-    const recorded = await this.record(body, signatureValid);
+    const transaction = await this.findTransaction(body.data.transaction);
+    const account = transaction?.merchantId ? await this.merchantAccounts.load(transaction.merchantId) : null;
+    const signatureValid = account !== null && isValidWompiSignature(body, account.eventsSecret);
+    const rejection = !transaction ? 'Unknown transaction' : signatureValid ? null : 'Invalid signature';
+
+    const recorded = await this.record(body, signatureValid, rejection);
     if (!recorded) return { received: true, duplicate: true };
 
-    if (!signatureValid) {
-      // Per Wompi docs the event must be ignored; answering 200 stops pointless retries.
-      this.logger.warn(`Ignored Wompi event with invalid signature (${recorded.id})`);
+    if (!transaction || !signatureValid) {
+      // Per Wompi docs such events are ignored; answering 200 stops pointless retries.
+      this.logger.warn(`Ignored Wompi event (${rejection}) ${recorded.id}`);
       return { received: true };
     }
 
     try {
-      await this.process(recorded.id, body);
+      await this.process(recorded.id, body, transaction);
     } catch (error) {
       this.logger.error(`Failed to process Wompi event ${recorded.id}`, error instanceof Error ? error.stack : undefined);
       await this.finish(recorded.id, WebhookProcessingStatus.FAILED, 'Processing error');
@@ -70,7 +73,17 @@ export class WebhooksService {
   }
 
   /** Stores the event first (audit trail + dedup). Returns null when it was already received. */
-  private async record(event: WompiEvent, signatureValid: boolean) {
+  private findTransaction(payload: WompiTransactionPayload): Promise<MatchedTransaction | null> {
+    return this.prisma.transaction.findFirst({
+      where: {
+        provider: PaymentProvider.WOMPI,
+        OR: [{ providerTransactionId: payload.id }, { reference: payload.reference }],
+      },
+      select: { id: true, amountInCents: true, currency: true, merchantId: true },
+    });
+  }
+
+  private async record(event: WompiEvent, signatureValid: boolean, rejection: string | null) {
     try {
       return await this.prisma.webhookEvent.create({
         data: {
@@ -80,8 +93,8 @@ export class WebhooksService {
           eventType: event.event,
           signatureValid,
           payload: event as unknown as Prisma.InputJsonObject,
-          processingStatus: signatureValid ? WebhookProcessingStatus.RECEIVED : WebhookProcessingStatus.IGNORED,
-          processingError: signatureValid ? null : 'Invalid signature',
+          processingStatus: rejection ? WebhookProcessingStatus.IGNORED : WebhookProcessingStatus.RECEIVED,
+          processingError: rejection,
         },
         select: { id: true },
       });
@@ -91,7 +104,7 @@ export class WebhooksService {
     }
   }
 
-  private async process(webhookEventId: string, event: WompiEvent): Promise<void> {
+  private async process(webhookEventId: string, event: WompiEvent, transaction: MatchedTransaction): Promise<void> {
     if (event.event !== WOMPI_TRANSACTION_UPDATED) {
       return this.finish(webhookEventId, WebhookProcessingStatus.IGNORED, `Unhandled event ${event.event}`);
     }
@@ -100,18 +113,6 @@ export class WebhooksService {
     const mapping = WOMPI_STATUS_MAP[payload.status];
     if (!mapping) {
       return this.finish(webhookEventId, WebhookProcessingStatus.IGNORED, `Non-final status ${payload.status}`);
-    }
-
-    const transaction = await this.prisma.transaction.findFirst({
-      where: {
-        provider: PaymentProvider.WOMPI,
-        OR: [{ providerTransactionId: payload.id }, { reference: payload.reference }],
-      },
-      select: { id: true, amountInCents: true, currency: true },
-    });
-
-    if (!transaction) {
-      return this.finish(webhookEventId, WebhookProcessingStatus.IGNORED, 'Unknown transaction');
     }
 
     // Never trust a status change whose amount does not match what we charged.

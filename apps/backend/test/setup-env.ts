@@ -28,7 +28,9 @@ Object.assign(process.env, {
   // Deterministic: every charge is approved unless a test forces a decline.
   PAYMENT_SIMULATOR_APPROVAL_RATE: '1',
   PAYMENT_SIMULATOR_LATENCY_MS: '0',
-  WOMPI_EVENTS_SECRET: 'test_events_secret',
+  WOMPI_SANDBOX_API_URL: 'https://sandbox.wompi.co/v1',
+  WOMPI_PRODUCTION_API_URL: 'https://production.wompi.co/v1',
+  MERCHANT_CODE_LENGTH: '6',
   THROTTLE_TTL_SECONDS: '60',
   THROTTLE_LIMIT: '10000',
   THROTTLE_SENSITIVE_LIMIT: '10000',

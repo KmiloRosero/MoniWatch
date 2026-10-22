@@ -9,6 +9,7 @@ import { CryptoModule } from './infrastructure/crypto/crypto.module';
 import { PrismaModule } from './infrastructure/prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { HealthController } from './modules/health/health.controller';
+import { MerchantsModule } from './modules/merchants/merchants.module';
 import { PaymentMethodsModule } from './modules/payment-methods/payment-methods.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
@@ -21,6 +22,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     PrismaModule,
     CryptoModule,
     AuthModule,
+    MerchantsModule,
     PaymentMethodsModule,
     TransactionsModule,
     WebhooksModule,

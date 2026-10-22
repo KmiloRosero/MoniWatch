@@ -3,13 +3,15 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { PaymentMethodStatus, PaymentMethodType, PaymentProvider, Prisma } from '@prisma/client';
 import { lastDigits, maskPhoneNumber } from '../../common/utils/mask';
 import { TokenVaultService } from '../../infrastructure/crypto/token-vault.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { PaymentProviderFactory } from '../../payment-providers/payment-provider.factory';
-import { ProviderCredentials } from '../../payment-providers/payment-provider.interface';
+import { MerchantGatewayAccount, ProviderCredentials } from '../../payment-providers/payment-provider.interface';
+import { MerchantAccountsService } from '../merchants/merchant-accounts.service';
 import { CreatePaymentMethodDto } from './dto/create-payment-method.dto';
 import { paymentMethodPublicSelect } from './payment-method.select';
 
@@ -19,6 +21,7 @@ export class PaymentMethodsService {
     private readonly prisma: PrismaService,
     private readonly vault: TokenVaultService,
     private readonly providers: PaymentProviderFactory,
+    private readonly merchantAccounts: MerchantAccountsService,
   ) {}
 
   async create(userId: string, dto: CreatePaymentMethodDto) {
@@ -53,9 +56,12 @@ export class PaymentMethodsService {
       dto.type === PaymentMethodType.WALLET ? (dto.walletPhoneNumber ?? user.phoneNumber) : null;
     const credentials: ProviderCredentials = { providerToken: dto.providerToken, walletPhoneNumber };
 
+    const account = await this.resolveMerchantAccount(dto);
+
     const source = await adapter.createPaymentSource({
       type: dto.type,
       credentials,
+      account,
       acceptance:
         dto.acceptanceToken && dto.personalDataAuthToken
           ? { acceptanceToken: dto.acceptanceToken, personalDataAuthToken: dto.personalDataAuthToken }
@@ -77,6 +83,7 @@ export class PaymentMethodsService {
 
     const data = {
       provider: dto.provider,
+      merchantId: account?.merchantId ?? null,
       type: dto.type,
       status: source.status,
       alias: dto.alias ?? null,
@@ -107,6 +114,15 @@ export class PaymentMethodsService {
         });
       }
 
+      // Linking a card to a merchant also adds that merchant to the watch's payees.
+      if (account) {
+        await tx.savedMerchant.upsert({
+          where: { userId_merchantId: { userId, merchantId: account.merchantId } },
+          create: { userId, merchantId: account.merchantId },
+          update: {},
+        });
+      }
+
       // A previously revoked method with the same token is reactivated instead of duplicated.
       return existing
         ? tx.paymentMethod.update({ where: { id: existing.id }, data, select: paymentMethodPublicSelect })
@@ -114,13 +130,14 @@ export class PaymentMethodsService {
     });
   }
 
-  /** What the app needs to tokenize a card with the provider and show its legal terms. */
-  async getCheckoutConfig(provider: PaymentProvider) {
-    const adapter = this.providers.get(provider);
-    if (!adapter.getCheckoutConfig) {
-      throw new NotFoundException(`${provider} has no checkout configuration`);
+  /** Wompi needs the merchant's account; other providers are not tied to a merchant. */
+  private async resolveMerchantAccount(dto: CreatePaymentMethodDto): Promise<MerchantGatewayAccount | null> {
+    if (dto.provider !== PaymentProvider.WOMPI) return null;
+    const account = await this.merchantAccounts.load(dto.merchantId!);
+    if (!account) {
+      throw new UnprocessableEntityException('Merchant not found or without a Wompi account');
     }
-    return adapter.getCheckoutConfig();
+    return account;
   }
 
   findAllForUser(userId: string) {

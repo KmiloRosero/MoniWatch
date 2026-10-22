@@ -1,7 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PaymentGatewaySimulator } from '../src/payment-providers/payment-gateway.simulator';
-import { addNequi, api, Api, createTestApp, pairWatch, registerUser } from './helpers';
+import { addNequi, api, Api, cardFor, createTestApp, pairWatch, registerMerchant, registerUser } from './helpers';
 
 describe('Payment methods, transactions and the watch', () => {
   let app: INestApplication;
@@ -16,15 +16,14 @@ describe('Payment methods, transactions and the watch', () => {
     await app.close();
   });
 
-  const card = (token: string) => ({
-    provider: 'WOMPI',
-    type: 'CARD',
-    providerToken: token,
-    last4: '4242',
-    cardBrand: 'visa',
-    cardExpMonth: 12,
-    cardExpYear: new Date().getFullYear() + 3,
+  let merchantId: string;
+
+  beforeAll(async () => {
+    const owner = await registerUser(client);
+    merchantId = (await registerMerchant(client, owner.accessToken)).id;
   });
+
+  const card = (token: string) => cardFor(merchantId, token);
 
   describe('payment methods', () => {
     it('stores Nequi and cards, makes the first one default, never exposes tokens', async () => {
@@ -69,8 +68,15 @@ describe('Payment methods, transactions and the watch', () => {
 
     it('reports the simulated Wompi checkout so the app skips real tokenization', async () => {
       const user = await registerUser(client);
-      const response = await client.get('/payment-methods/providers/wompi', user.accessToken).expect(200);
+      const response = await client.get(`/merchants/${merchantId}/checkout/wompi`, user.accessToken).expect(200);
       expect(response.body).toEqual({ mode: 'SIMULATED', publicKey: null, apiUrl: null, acceptance: null });
+    });
+
+    it('requires a merchant for Wompi cards', async () => {
+      const user = await registerUser(client);
+      const { merchantId: _omitted, ...withoutMerchant } = card(`tok_${randomUUID()}`);
+      await client.post('/payment-methods', withoutMerchant, user.accessToken).expect(400);
+      await client.post('/payment-methods', cardFor(randomUUID()), user.accessToken).expect(422);
     });
 
     it('isolates users from each other', async () => {

@@ -1,11 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { createHash } from 'crypto';
-import { EnvironmentVariables } from '../../config/env.validation';
+import { MerchantGatewayAccount } from '../payment-provider.interface';
 
 const REQUEST_TIMEOUT_MS = 15_000;
 /** Acceptance tokens are pre-signed by Wompi; refreshing them every few minutes is plenty. */
 const ACCEPTANCE_CACHE_MS = 5 * 60_000;
+/** A transaction id that never exists: looking it up only tells whether the private key is accepted. */
+const PRIVATE_KEY_PROBE_TRANSACTION_ID = '0-0-0';
 
 export type WompiTransactionStatus = 'PENDING' | 'APPROVED' | 'DECLINED' | 'VOIDED' | 'ERROR';
 
@@ -14,6 +15,12 @@ export interface WompiAcceptance {
   termsUrl: string;
   personalDataAuthToken: string;
   personalDataUrl: string;
+}
+
+export interface WompiMerchantInfo {
+  name: string;
+  active: boolean;
+  acceptance: WompiAcceptance;
 }
 
 export interface WompiPaymentSource {
@@ -31,6 +38,11 @@ export interface WompiTransaction {
   currency: string;
 }
 
+/** The parts of a merchant account each call needs; never logged. */
+type WompiPublicAccount = Pick<MerchantGatewayAccount, 'apiUrl' | 'publicKey'>;
+type WompiPrivateAccount = Pick<MerchantGatewayAccount, 'apiUrl' | 'privateKey'>;
+type WompiChargingAccount = Pick<MerchantGatewayAccount, 'apiUrl' | 'privateKey' | 'integritySecret'>;
+
 /** Wompi answered with an error body ({ error: { type, reason, messages } }). */
 export class WompiApiError extends Error {
   constructor(
@@ -45,48 +57,33 @@ export class WompiApiError extends Error {
 
 interface MerchantInfoResponse {
   data?: {
+    name?: string;
+    active?: boolean;
     presigned_acceptance?: { acceptance_token?: string; permalink?: string };
     presigned_personal_data_auth?: { acceptance_token?: string; permalink?: string };
   };
 }
 
 /**
- * Thin HTTP client for the Wompi API (https://docs.wompi.co).
- * Private-key calls only ever happen here, on the server.
+ * Thin HTTP client for the Wompi API (https://docs.wompi.co). Stateless: every call names
+ * the merchant account it acts for. Private-key calls only ever happen here, on the server.
  */
 @Injectable()
 export class WompiClient {
   private readonly logger = new Logger(WompiClient.name);
-  private readonly apiUrl: string;
-  private readonly publicKey: string;
-  private readonly privateKey: string;
-  private readonly integritySecret: string;
-  private acceptanceCache: { value: WompiAcceptance; fetchedAt: number } | null = null;
+  /** Keyed by public key: each merchant has its own pre-signed acceptance tokens. */
+  private readonly infoCache = new Map<string, { value: WompiMerchantInfo; fetchedAt: number }>();
 
-  constructor(config: ConfigService<EnvironmentVariables, true>) {
-    this.apiUrl = (config.get('WOMPI_API_URL', { infer: true }) ?? '').replace(/\/+$/, '');
-    this.publicKey = config.get('WOMPI_PUBLIC_KEY', { infer: true }) ?? '';
-    this.privateKey = config.get('WOMPI_PRIVATE_KEY', { infer: true }) ?? '';
-    this.integritySecret = config.get('WOMPI_INTEGRITY_SECRET', { infer: true }) ?? '';
-  }
-
-  get baseUrl(): string {
-    return this.apiUrl;
-  }
-
-  get merchantPublicKey(): string {
-    return this.publicKey;
-  }
-
-  /** Terms + personal data authorization the end user must accept before a card is saved. */
-  async getAcceptance(): Promise<WompiAcceptance> {
-    if (this.acceptanceCache && Date.now() - this.acceptanceCache.fetchedAt < ACCEPTANCE_CACHE_MS) {
-      return this.acceptanceCache.value;
+  /** Merchant name, status and the terms the end user must accept before a card is saved. */
+  async getMerchantInfo(account: WompiPublicAccount): Promise<WompiMerchantInfo> {
+    const cached = this.infoCache.get(account.publicKey);
+    if (cached && Date.now() - cached.fetchedAt < ACCEPTANCE_CACHE_MS) {
+      return cached.value;
     }
 
     // GET /merchants/info replaces GET /merchants/:public_key (deprecated by Wompi on 2026-10-31).
-    const body = await this.request<MerchantInfoResponse>('GET', '/merchants/info', {
-      headers: { 'x-merchant-public-key': this.publicKey },
+    const body = await this.request<MerchantInfoResponse>(account.apiUrl, 'GET', '/merchants/info', {
+      headers: { 'x-merchant-public-key': account.publicKey },
     });
     const terms = body.data?.presigned_acceptance;
     const personalData = body.data?.presigned_personal_data_auth;
@@ -94,24 +91,42 @@ export class WompiClient {
       throw new WompiApiError(502, 'INVALID_RESPONSE', 'Wompi merchant info is missing acceptance tokens');
     }
 
-    const value: WompiAcceptance = {
-      acceptanceToken: terms.acceptance_token,
-      termsUrl: terms.permalink,
-      personalDataAuthToken: personalData.acceptance_token,
-      personalDataUrl: personalData.permalink,
+    const value: WompiMerchantInfo = {
+      name: body.data?.name ?? '',
+      active: body.data?.active === true,
+      acceptance: {
+        acceptanceToken: terms.acceptance_token,
+        termsUrl: terms.permalink,
+        personalDataAuthToken: personalData.acceptance_token,
+        personalDataUrl: personalData.permalink,
+      },
     };
-    this.acceptanceCache = { value, fetchedAt: Date.now() };
+    this.infoCache.set(account.publicKey, { value, fetchedAt: Date.now() });
     return value;
   }
 
-  async createCardPaymentSource(input: {
-    cardToken: string;
-    customerEmail: string;
-    acceptanceToken: string;
-    personalDataAuthToken: string;
-  }): Promise<WompiPaymentSource> {
-    const body = await this.request<{ data: WompiPaymentSource }>('POST', '/payment_sources', {
-      auth: 'private',
+  async getAcceptance(account: WompiPublicAccount): Promise<WompiAcceptance> {
+    return (await this.getMerchantInfo(account)).acceptance;
+  }
+
+  /** Looks up a transaction id that never exists: 404 means the key is accepted, 401/403 that it is not. */
+  async verifyPrivateKey(account: WompiPrivateAccount): Promise<boolean> {
+    try {
+      await this.getTransaction(account, PRIVATE_KEY_PROBE_TRANSACTION_ID);
+      return true;
+    } catch (error) {
+      if (error instanceof WompiApiError && error.status === 404) return true;
+      if (error instanceof WompiApiError && (error.status === 401 || error.status === 403)) return false;
+      throw error;
+    }
+  }
+
+  async createCardPaymentSource(
+    account: WompiPrivateAccount,
+    input: { cardToken: string; customerEmail: string; acceptanceToken: string; personalDataAuthToken: string },
+  ): Promise<WompiPaymentSource> {
+    const body = await this.request<{ data: WompiPaymentSource }>(account.apiUrl, 'POST', '/payment_sources', {
+      privateKey: account.privateKey,
       json: {
         type: 'CARD',
         token: input.cardToken,
@@ -123,19 +138,16 @@ export class WompiClient {
     return body.data;
   }
 
-  async createTransaction(input: {
-    reference: string;
-    amountInCents: number;
-    currency: string;
-    customerEmail: string;
-    paymentSourceId: number;
-  }): Promise<WompiTransaction> {
-    const body = await this.request<{ data: WompiTransaction }>('POST', '/transactions', {
-      auth: 'private',
+  async createTransaction(
+    account: WompiChargingAccount,
+    input: { reference: string; amountInCents: number; currency: string; customerEmail: string; paymentSourceId: number },
+  ): Promise<WompiTransaction> {
+    const body = await this.request<{ data: WompiTransaction }>(account.apiUrl, 'POST', '/transactions', {
+      privateKey: account.privateKey,
       json: {
         amount_in_cents: input.amountInCents,
         currency: input.currency,
-        signature: this.integritySignature(input.reference, input.amountInCents, input.currency),
+        signature: integritySignature(account.integritySecret, input.reference, input.amountInCents, input.currency),
         customer_email: input.customerEmail,
         reference: input.reference,
         payment_source_id: input.paymentSourceId,
@@ -146,28 +158,27 @@ export class WompiClient {
     return body.data;
   }
 
-  async getTransaction(id: string): Promise<WompiTransaction> {
-    const body = await this.request<{ data: WompiTransaction }>('GET', `/transactions/${encodeURIComponent(id)}`, {
-      auth: 'private',
-    });
+  async getTransaction(account: WompiPrivateAccount, id: string): Promise<WompiTransaction> {
+    const body = await this.request<{ data: WompiTransaction }>(
+      account.apiUrl,
+      'GET',
+      `/transactions/${encodeURIComponent(id)}`,
+      { privateKey: account.privateKey },
+    );
     return body.data;
   }
 
-  /** SHA256(reference + amountInCents + currency + integritySecret), lowercase hex (Wompi "firma de integridad"). */
-  integritySignature(reference: string, amountInCents: number, currency: string): string {
-    return createHash('sha256').update(`${reference}${amountInCents}${currency}${this.integritySecret}`).digest('hex');
-  }
-
   private async request<T>(
+    apiUrl: string,
     method: 'GET' | 'POST',
     path: string,
-    options: { auth?: 'private'; json?: unknown; headers?: Record<string, string> } = {},
+    options: { privateKey?: string; json?: unknown; headers?: Record<string, string> } = {},
   ): Promise<T> {
     const headers: Record<string, string> = { Accept: 'application/json', ...options.headers };
-    if (options.auth === 'private') headers.Authorization = `Bearer ${this.privateKey}`;
+    if (options.privateKey) headers.Authorization = `Bearer ${options.privateKey}`;
     if (options.json !== undefined) headers['Content-Type'] = 'application/json';
 
-    const response = await fetch(`${this.apiUrl}${path}`, {
+    const response = await fetch(`${apiUrl.replace(/\/+$/, '')}${path}`, {
       method,
       headers,
       body: options.json !== undefined ? JSON.stringify(options.json) : undefined,
@@ -191,4 +202,14 @@ export class WompiClient {
 
     return payload as T;
   }
+}
+
+/** SHA256(reference + amountInCents + currency + integritySecret), lowercase hex (Wompi "firma de integridad"). */
+export function integritySignature(
+  integritySecret: string,
+  reference: string,
+  amountInCents: number,
+  currency: string,
+): string {
+  return createHash('sha256').update(`${reference}${amountInCents}${currency}${integritySecret}`).digest('hex');
 }

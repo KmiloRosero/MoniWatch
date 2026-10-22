@@ -62,6 +62,44 @@ export async function addNequi(client: Api, token: string, phoneNumber: string) 
   return response.body as { id: string };
 }
 
+/** Wompi sandbox-shaped keys; in SIMULATED mode they are only checked for shape. */
+export function wompiTestKeys() {
+  const id = randomUUID().replace(/-/g, '');
+  return {
+    wompiPublicKey: `pub_test_${id}`,
+    wompiPrivateKey: `prv_test_${id}`,
+    wompiIntegritySecret: `test_integrity_${id}`,
+    wompiEventsSecret: `test_events_${id}`,
+  };
+}
+
+export interface TestMerchant {
+  id: string;
+  name: string;
+  code: string;
+  eventsSecret: string;
+}
+
+/** Registers a merchant owned by the given user and returns it with its events secret. */
+export async function registerMerchant(client: Api, ownerToken: string, name = 'Tienda Central'): Promise<TestMerchant> {
+  const keys = wompiTestKeys();
+  const response = await client.post('/merchants', { name, ...keys }, ownerToken).expect(201);
+  return { ...(response.body as { id: string; name: string; code: string }), eventsSecret: keys.wompiEventsSecret };
+}
+
+export function cardFor(merchantId: string, providerToken = `tok_${randomUUID()}`) {
+  return {
+    provider: 'WOMPI',
+    type: 'CARD',
+    merchantId,
+    providerToken,
+    last4: '4242',
+    cardBrand: 'visa',
+    cardExpMonth: 12,
+    cardExpYear: new Date().getFullYear() + 3,
+  };
+}
+
 /** Full device authorization flow; returns the watch tokens. */
 export async function pairWatch(client: Api, userToken: string, deviceId = randomUUID()) {
   const created = await client.post('/devices/pairing-requests', { platform: 'WEAR_OS', deviceId, deviceModel: 'Test Watch' }).expect(201);
