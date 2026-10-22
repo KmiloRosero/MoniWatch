@@ -5,6 +5,8 @@ import { useAuth } from '@/features/auth/AuthProvider';
 import { LoginScreen } from '@/features/auth/screens/LoginScreen';
 import { RegisterScreen } from '@/features/auth/screens/RegisterScreen';
 import { PairWatchScreen } from '@/features/devices/screens/PairWatchScreen';
+import { AddMerchantScreen } from '@/features/merchants/screens/AddMerchantScreen';
+import { MyMerchantScreen } from '@/features/merchants/screens/MyMerchantScreen';
 import { WatchesScreen } from '@/features/devices/screens/WatchesScreen';
 import { WatchSettingsScreen } from '@/features/devices/screens/WatchSettingsScreen';
 import { AddPaymentMethodScreen } from '@/features/payment-methods/screens/AddPaymentMethodScreen';
@@ -59,6 +61,8 @@ export function RootNavigator() {
           <>
             <Stack.Screen name="Dashboard" component={DashboardScreen} options={{ headerShown: false }} />
             <Stack.Screen name="AddPaymentMethod" component={AddPaymentMethodScreen} options={{ title: copy.addPaymentMethod.title }} />
+            <Stack.Screen name="AddMerchant" component={AddMerchantScreen} options={{ title: copy.addMerchant.title }} />
+            <Stack.Screen name="MyMerchant" component={MyMerchantScreen} options={{ title: copy.myMerchant.title }} />
             <Stack.Screen name="Transactions" component={TransactionsScreen} options={{ title: copy.transactions.title }} />
             <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: copy.settings.title }} />
             <Stack.Screen name="PaymentPin" component={PaymentPinScreen} options={{ title: copy.paymentPin.title }} />

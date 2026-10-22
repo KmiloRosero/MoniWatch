@@ -1,5 +1,5 @@
 import { apiRequest } from './http-client';
-import type { CreatePaymentMethodRequest, PaymentMethod, WompiCheckout } from './types';
+import type { CreatePaymentMethodRequest, PaymentMethod } from './types';
 
 export const paymentMethodsApi = {
   list() {
@@ -14,10 +14,6 @@ export const paymentMethodsApi = {
     return apiRequest<PaymentMethod>(`/payment-methods/${encodeURIComponent(id)}/default`, {
       method: 'PATCH',
     });
-  },
-
-  wompiCheckout() {
-    return apiRequest<WompiCheckout>('/payment-methods/providers/wompi');
   },
 
   revoke(id: string) {

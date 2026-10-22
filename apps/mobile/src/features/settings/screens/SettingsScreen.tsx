@@ -42,6 +42,11 @@ export function SettingsScreen({ navigation }: Props) {
           onPress={() => navigation.navigate('Watches')}
         />
         <ListRow
+          title={t.myMerchant}
+          subtitle={t.myMerchantDescription}
+          onPress={() => navigation.navigate('MyMerchant')}
+        />
+        <ListRow
           title={t.pin}
           subtitle={user.data ? (user.data.hasPaymentPin ? t.pinSet : t.pinNotSet) : undefined}
           onPress={() => navigation.navigate('PaymentPin')}

@@ -6,11 +6,13 @@ import { AppText } from '@/components/ui/AppText';
 import { Button } from '@/components/ui/Button';
 import { FadeInView } from '@/components/ui/FadeInView';
 import { InlineAlert, StateMessage } from '@/components/ui/Feedback';
+import { ListRow } from '@/components/ui/ListRow';
 import { Screen } from '@/components/ui/Screen';
 import { useCurrentUser } from '@/features/auth/hooks/useAuthQueries';
+import { useSavedMerchants, useUnsaveMerchant } from '@/features/merchants/hooks/useMerchants';
 import { copy } from '@/i18n/es';
 import { toUserMessage } from '@/services/api/error-messages';
-import type { PaymentMethod } from '@/services/api/types';
+import type { Merchant, PaymentMethod } from '@/services/api/types';
 import { useTheme } from '@/theme/useTheme';
 import { PaymentMethodCard } from '../components/PaymentMethodCard';
 import { usePaymentMethods, useRevokePaymentMethod, useSetDefaultPaymentMethod } from '../hooks/usePaymentMethods';
@@ -26,6 +28,8 @@ export function DashboardScreen({ navigation }: Props) {
   const paymentMethods = usePaymentMethods();
   const setDefault = useSetDefaultPaymentMethod();
   const revoke = useRevokePaymentMethod();
+  const merchants = useSavedMerchants();
+  const unsaveMerchant = useUnsaveMerchant();
   const [isManualRefresh, setIsManualRefresh] = useState(false);
 
   const methods = paymentMethods.data ?? [];
@@ -34,7 +38,7 @@ export function DashboardScreen({ navigation }: Props) {
 
   const refresh = async () => {
     setIsManualRefresh(true);
-    await Promise.all([paymentMethods.refetch(), currentUser.refetch()]);
+    await Promise.all([paymentMethods.refetch(), currentUser.refetch(), merchants.refetch()]);
     setIsManualRefresh(false);
   };
 
@@ -43,6 +47,47 @@ export function DashboardScreen({ navigation }: Props) {
       { text: copy.paymentMethod.cancel, style: 'cancel' },
       { text: copy.paymentMethod.remove, style: 'destructive', onPress: () => revoke.mutate(method.id) },
     ]);
+
+  const confirmRemoveMerchant = (merchant: Merchant) =>
+    Alert.alert(t.removeMerchantConfirmTitle, t.removeMerchantConfirmMessage(merchant.name), [
+      { text: copy.paymentMethod.cancel, style: 'cancel' },
+      { text: t.removeMerchant, style: 'destructive', onPress: () => unsaveMerchant.mutate(merchant.id) },
+    ]);
+
+  const cardsFor = (merchantId: string) =>
+    methods.filter((method) => method.merchant?.id === merchantId && method.status === 'ACTIVE').length;
+
+  const merchantsSection = (
+    <View style={{ gap: spacing.sm }}>
+      <AppText variant="label" tone="tertiary">
+        {t.merchantsTitle.toUpperCase()}
+      </AppText>
+      {merchants.data && merchants.data.length > 0 ? (
+        merchants.data.map((merchant) => (
+          <ListRow
+            key={merchant.id}
+            title={merchant.name}
+            subtitle={`${t.merchantCode(merchant.code)}  ·  ${t.merchantCardCount(cardsFor(merchant.id))}`}
+            onPress={() => navigation.navigate('AddPaymentMethod', { merchantId: merchant.id })}
+            accessibilityHint={t.addCardFor}
+            trailing={
+              <Button
+                label={t.removeMerchant}
+                onPress={() => confirmRemoveMerchant(merchant)}
+                variant="ghost"
+                size="sm"
+                loading={unsaveMerchant.isPending && unsaveMerchant.variables === merchant.id}
+              />
+            }
+          />
+        ))
+      ) : merchants.isSuccess ? (
+        <AppText tone="secondary">{t.merchantsEmpty}</AppText>
+      ) : null}
+      {unsaveMerchant.error ? <InlineAlert message={t.removeMerchantError} /> : null}
+      <Button label={t.addMerchant} onPress={() => navigation.navigate('AddMerchant')} variant="secondary" size="sm" />
+    </View>
+  );
 
   const header = (
     <View style={{ gap: spacing.xl, marginBottom: spacing.lg }}>
@@ -55,6 +100,7 @@ export function DashboardScreen({ navigation }: Props) {
         </View>
         <Button label={t.settings} onPress={() => navigation.navigate('Settings')} variant="ghost" size="sm" />
       </View>
+      {merchantsSection}
       {hasMethods ? (
         <AppText variant="label" tone="tertiary">
           {t.sectionTitle.toUpperCase()}

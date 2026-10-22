@@ -2,10 +2,11 @@ import { useRef, useState } from 'react';
 import { StyleSheet, View, type TextInputInstance } from 'react-native';
 import { AppText } from '@/components/ui/AppText';
 import { Button } from '@/components/ui/Button';
-import { InlineAlert } from '@/components/ui/Feedback';
+import { InlineAlert, StateMessage } from '@/components/ui/Feedback';
 import { TextField } from '@/components/ui/TextField';
 import { ToggleRow } from '@/components/ui/ToggleRow';
 import { copy } from '@/i18n/es';
+import type { Merchant } from '@/services/api/types';
 import { useTheme } from '@/theme/useTheme';
 import { useLinkWompiCard, useWompiCheckout } from '../hooks/usePaymentMethods';
 import {
@@ -20,6 +21,7 @@ import {
   parseExpiry,
 } from '../utils/card';
 import { cardBrandName, linkErrorMessage } from '../utils/presentation';
+import { MerchantPicker } from './MerchantPicker';
 import { WompiAcceptance } from './WompiAcceptance';
 
 const t = copy.addPaymentMethod;
@@ -44,10 +46,21 @@ function validate(values: CardFormValues) {
 
 const NO_ERRORS = { number: null, holder: null, expiry: null, cvc: null };
 
-export function CardForm({ onLinked }: { onLinked: () => void }) {
+interface CardFormProps {
+  onLinked: () => void;
+  /** The user's payees: a card is registered for exactly one of them. */
+  merchants: Merchant[];
+  initialMerchantId?: string;
+  onAddMerchant: () => void;
+}
+
+export function CardForm({ onLinked, merchants, initialMerchantId, onAddMerchant }: CardFormProps) {
   const { spacing } = useTheme();
   const linkCard = useLinkWompiCard();
-  const checkout = useWompiCheckout();
+  const [pickedMerchantId, setMerchantId] = useState<string | null>(initialMerchantId ?? null);
+  // With a single payee there is nothing to choose, even if it was added after this form opened.
+  const merchantId = pickedMerchantId ?? (merchants.length === 1 ? (merchants[0]?.id ?? null) : null);
+  const checkout = useWompiCheckout(merchantId);
   const holderRef = useRef<TextInputInstance>(null);
   const expiryRef = useRef<TextInputInstance>(null);
   const cvcRef = useRef<TextInputInstance>(null);
@@ -68,7 +81,7 @@ export function CardForm({ onLinked }: { onLinked: () => void }) {
     setSubmitted(true);
     const result = validate(values);
     const expiry = parseExpiry(values.expiry);
-    if (Object.values(result).some(Boolean) || !expiry || linkCard.isPending || !checkout.data) return;
+    if (Object.values(result).some(Boolean) || !expiry || linkCard.isPending || !checkout.data || !merchantId) return;
     if (acceptance && !accepted) return;
 
     linkCard.mutate(
@@ -80,14 +93,37 @@ export function CardForm({ onLinked }: { onLinked: () => void }) {
         cvc: values.cvc,
         alias: alias.trim() || undefined,
         isDefault: makeDefault,
+        merchantId,
         checkout: checkout.data,
       },
       { onSuccess: onLinked },
     );
   };
 
+  if (merchants.length === 0) {
+    return (
+      <StateMessage
+        title={t.card.noMerchantsTitle}
+        description={t.card.noMerchantsDescription}
+        actionLabel={copy.dashboard.addMerchant}
+        onAction={onAddMerchant}
+      />
+    );
+  }
+
   return (
     <View style={{ gap: spacing.lg }}>
+      <MerchantPicker
+        merchants={merchants}
+        selectedId={merchantId}
+        onSelect={(id) => {
+          setMerchantId(id);
+          // Acceptance tokens belong to each merchant's Wompi account.
+          setAccepted(false);
+        }}
+        label={t.card.merchantLabel}
+        helper={t.card.merchantHelper}
+      />
       <TextField
         label={t.card.numberLabel}
         placeholder={t.card.numberPlaceholder}
@@ -171,10 +207,10 @@ export function CardForm({ onLinked }: { onLinked: () => void }) {
         <Button label={copy.common.retry} onPress={() => void checkout.refetch()} variant="secondary" />
       ) : (
         <Button
-          label={checkout.isPending ? t.card.checkoutLoading : t.card.submit}
+          label={merchantId && checkout.isPending ? t.card.checkoutLoading : t.card.submit}
           onPress={submit}
           loading={linkCard.isPending}
-          disabled={checkout.isPending}
+          disabled={!merchantId || checkout.isPending}
         />
       )}
     </View>

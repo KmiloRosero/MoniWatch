@@ -4,7 +4,10 @@ export type RootStackParamList = {
   Register: undefined;
   // Signed in
   Dashboard: undefined;
-  AddPaymentMethod: undefined;
+  /** Opens on the card tab with this merchant selected. */
+  AddPaymentMethod: { merchantId?: string } | undefined;
+  AddMerchant: undefined;
+  MyMerchant: undefined;
   Transactions: undefined;
   Settings: undefined;
   PaymentPin: undefined;

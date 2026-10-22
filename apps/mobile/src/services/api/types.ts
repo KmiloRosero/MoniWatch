@@ -67,6 +67,35 @@ export interface SetPaymentPinRequest {
   pin: string;
 }
 
+/** A business payers can pay; money settles into its own Wompi account. */
+export interface Merchant {
+  id: string;
+  name: string;
+  code: string;
+  category: string | null;
+  logoUrl: string | null;
+}
+
+export type MerchantStatus = 'ACTIVE' | 'INACTIVE';
+export type WompiEnvironment = 'SANDBOX' | 'PRODUCTION';
+
+/** What the owner of a merchant sees. Secrets never come back from the API. */
+export interface OwnedMerchant extends Merchant {
+  status: MerchantStatus;
+  wompiEnvironment: WompiEnvironment | null;
+  wompiPublicKey: string | null;
+  createdAt: string;
+}
+
+export interface RegisterMerchantRequest {
+  name?: string;
+  category?: string;
+  wompiPublicKey: string;
+  wompiPrivateKey: string;
+  wompiIntegritySecret: string;
+  wompiEventsSecret: string;
+}
+
 export interface PaymentMethod {
   id: string;
   provider: PaymentProvider;
@@ -84,11 +113,15 @@ export interface PaymentMethod {
   lastUsedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Cards belong to the merchant they were linked for; wallets pay any merchant. */
+  merchant: { id: string; name: string; code: string } | null;
 }
 
 export interface CreatePaymentMethodRequest {
   provider: PaymentProvider;
   type: PaymentMethodType;
+  /** Required for Wompi cards. */
+  merchantId?: string;
   providerToken: string;
   alias?: string;
   isDefault?: boolean;

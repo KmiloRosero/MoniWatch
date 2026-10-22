@@ -3,8 +3,10 @@ import { View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@/app/navigation/types';
 import { AppText } from '@/components/ui/AppText';
+import { StateMessage } from '@/components/ui/Feedback';
 import { Screen } from '@/components/ui/Screen';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { useSavedMerchants } from '@/features/merchants/hooks/useMerchants';
 import { copy } from '@/i18n/es';
 import { useTheme } from '@/theme/useTheme';
 import { CardForm } from '../components/CardForm';
@@ -20,9 +22,11 @@ const KIND_OPTIONS = [
   { value: 'card', label: t.kinds.card },
 ] as const satisfies ReadonlyArray<{ value: MethodKind; label: string }>;
 
-export function AddPaymentMethodScreen({ navigation }: Props) {
+export function AddPaymentMethodScreen({ navigation, route }: Props) {
   const { spacing } = useTheme();
-  const [kind, setKind] = useState<MethodKind>('nequi');
+  const initialMerchantId = route.params?.merchantId;
+  const [kind, setKind] = useState<MethodKind>(initialMerchantId ? 'card' : 'nequi');
+  const merchants = useSavedMerchants();
   const onLinked = () => navigation.goBack();
 
   return (
@@ -39,7 +43,23 @@ export function AddPaymentMethodScreen({ navigation }: Props) {
         />
       </View>
       {/* Each form keeps its own state; switching tabs resets the other form on purpose. */}
-      {kind === 'nequi' ? <NequiForm onLinked={onLinked} /> : <CardForm onLinked={onLinked} />}
+      {kind === 'nequi' ? (
+        <NequiForm onLinked={onLinked} />
+      ) : merchants.data ? (
+        <CardForm
+          onLinked={onLinked}
+          merchants={merchants.data}
+          initialMerchantId={initialMerchantId}
+          onAddMerchant={() => navigation.navigate('AddMerchant')}
+        />
+      ) : (
+        <StateMessage
+          title={merchants.isError ? copy.addMerchant.errorTitle : copy.addMerchant.loading}
+          loading={merchants.isPending}
+          actionLabel={merchants.isError ? copy.common.retry : undefined}
+          onAction={merchants.isError ? () => void merchants.refetch() : undefined}
+        />
+      )}
     </Screen>
   );
 }

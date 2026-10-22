@@ -57,6 +57,9 @@ export function PaymentMethodCard({ method, onMakeDefault, onRemove, isUpdating,
           <AppText variant="caption" tone="secondary" numberOfLines={1}>
             {`${providerName}  ·  ${paymentMethodDetail(method)}`}
           </AppText>
+          <AppText variant="caption" tone="tertiary" numberOfLines={1}>
+            {method.merchant ? t.forMerchant(method.merchant.name) : t.anyMerchant}
+          </AppText>
         </View>
 
         {method.isDefault ? <Badge label={t.defaultBadge} tone="accent" /> : null}
