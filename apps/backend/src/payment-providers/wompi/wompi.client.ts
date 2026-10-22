@@ -112,7 +112,10 @@ export class WompiClient {
   /** Looks up a transaction id that never exists: 404 means the key is accepted, 401/403 that it is not. */
   async verifyPrivateKey(account: WompiPrivateAccount): Promise<boolean> {
     try {
-      await this.getTransaction(account, PRIVATE_KEY_PROBE_TRANSACTION_ID);
+      await this.request(account.apiUrl, 'GET', `/transactions/${PRIVATE_KEY_PROBE_TRANSACTION_ID}`, {
+        privateKey: account.privateKey,
+        expectedErrorStatuses: [404],
+      });
       return true;
     } catch (error) {
       if (error instanceof WompiApiError && error.status === 404) return true;
@@ -172,7 +175,13 @@ export class WompiClient {
     apiUrl: string,
     method: 'GET' | 'POST',
     path: string,
-    options: { privateKey?: string; json?: unknown; headers?: Record<string, string> } = {},
+    options: {
+      privateKey?: string;
+      json?: unknown;
+      headers?: Record<string, string>;
+      /** Answers the caller anticipates (e.g. a probe's 404): thrown as usual, but not logged. */
+      expectedErrorStatuses?: number[];
+    } = {},
   ): Promise<T> {
     const headers: Record<string, string> = { Accept: 'application/json', ...options.headers };
     if (options.privateKey) headers.Authorization = `Bearer ${options.privateKey}`;
@@ -196,7 +205,9 @@ export class WompiClient {
     if (!response.ok) {
       const error = (payload as { error?: { type?: string; reason?: string; messages?: unknown } } | null)?.error;
       const detail = error?.reason ?? (error?.messages ? JSON.stringify(error.messages) : `HTTP ${response.status}`);
-      this.logger.warn(`Wompi ${method} ${path} failed: ${response.status} ${error?.type ?? ''} ${detail}`);
+      if (!options.expectedErrorStatuses?.includes(response.status)) {
+        this.logger.warn(`Wompi ${method} ${path} failed: ${response.status} ${error?.type ?? ''} ${detail}`);
+      }
       throw new WompiApiError(response.status, error?.type ?? 'UNKNOWN', detail);
     }
 
