@@ -21,7 +21,13 @@ export class PlatformMerchantBootstrap implements OnApplicationBootstrap {
     const privateKey = this.config.get('WOMPI_PRIVATE_KEY', { infer: true });
     const integritySecret = this.config.get('WOMPI_INTEGRITY_SECRET', { infer: true });
     const eventsSecret = this.config.get('WOMPI_EVENTS_SECRET', { infer: true });
-    if (!publicKey || !privateKey || !integritySecret || !eventsSecret) return;
+    const provided = [publicKey, privateKey, integritySecret, eventsSecret].filter(Boolean).length;
+    if (provided === 0) return;
+    // A partial key set must not take the API down: payments keep working for other merchants.
+    if (!publicKey || !privateKey || !integritySecret || !eventsSecret) {
+      this.logger.warn('Platform merchant skipped: set all four WOMPI_* keys (public, private, integrity, events)');
+      return;
+    }
 
     try {
       const merchant = await this.merchants.upsertPlatformMerchant({ publicKey, privateKey, integritySecret, eventsSecret });

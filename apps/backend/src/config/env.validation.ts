@@ -188,12 +188,6 @@ export class EnvironmentVariables {
   THROTTLE_SENSITIVE_LIMIT: number;
 }
 
-const WOMPI_PLATFORM_MERCHANT_KEYS = [
-  'WOMPI_PUBLIC_KEY',
-  'WOMPI_PRIVATE_KEY',
-  'WOMPI_INTEGRITY_SECRET',
-  'WOMPI_EVENTS_SECRET',
-] as const satisfies ReadonlyArray<keyof EnvironmentVariables>;
 
 export function validateEnvironment(config: Record<string, unknown>): EnvironmentVariables {
   const validated = plainToInstance(EnvironmentVariables, config, {
@@ -204,14 +198,6 @@ export function validateEnvironment(config: Record<string, unknown>): Environmen
   const details = errors.map(
     (error) => `${error.property}: ${Object.values(error.constraints ?? {}).join(', ')}`,
   );
-
-  // The platform merchant is all-or-nothing: a partial key set is a configuration mistake.
-  const platformKeysSet = WOMPI_PLATFORM_MERCHANT_KEYS.filter((key) => Boolean(validated[key]));
-  if (platformKeysSet.length > 0 && platformKeysSet.length < WOMPI_PLATFORM_MERCHANT_KEYS.length) {
-    for (const key of WOMPI_PLATFORM_MERCHANT_KEYS) {
-      if (!validated[key]) details.push(`${key}: required when any other WOMPI_* key is set`);
-    }
-  }
 
   if (details.length > 0) {
     throw new Error(`Invalid environment configuration:\n${details.join('\n')}`);
