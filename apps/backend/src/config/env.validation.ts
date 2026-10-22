@@ -189,8 +189,22 @@ export class EnvironmentVariables {
 }
 
 
+/**
+ * Wompi's public endpoints and the merchant code length rarely change, so a deployment that
+ * predates them (e.g. a Blueprint not yet re-synced) still boots. An explicit value always wins.
+ */
+const ENVIRONMENT_DEFAULTS: Partial<Record<keyof EnvironmentVariables, string>> = {
+  WOMPI_SANDBOX_API_URL: 'https://sandbox.wompi.co/v1',
+  WOMPI_PRODUCTION_API_URL: 'https://production.wompi.co/v1',
+  MERCHANT_CODE_LENGTH: '6',
+};
+
 export function validateEnvironment(config: Record<string, unknown>): EnvironmentVariables {
-  const validated = plainToInstance(EnvironmentVariables, config, {
+  const withDefaults: Record<string, unknown> = { ...config };
+  for (const [key, value] of Object.entries(ENVIRONMENT_DEFAULTS)) {
+    if (withDefaults[key] === undefined || withDefaults[key] === '') withDefaults[key] = value;
+  }
+  const validated = plainToInstance(EnvironmentVariables, withDefaults, {
     enableImplicitConversion: true,
   });
   const errors = validateSync(validated, { skipMissingProperties: false });
