@@ -16,11 +16,11 @@ function cardBrandName(brand: string | null): string | null {
   return copy.paymentMethod.cardBrands[upper] ?? upper;
 }
 
-/** Short identifier that fits under a chip label: "Visa •••• 4242", "•••• 4321". */
+/** Short identifier that fits under a chip label: "Visa •••• 4242", "Nequi •••• 4321". */
 export function methodDetail(method: PaymentMethod): string {
   const lastFour = method.last4 ?? method.maskedPhoneNumber?.slice(-4) ?? null;
   const masked = lastFour ? `•••• ${lastFour}` : method.displayLabel;
   const brand = method.type === 'CARD' ? cardBrandName(method.cardBrand) : null;
-  const prefix = method.alias ?? brand;
+  const prefix = method.alias ?? brand ?? providerName(method.provider);
   return prefix ? `${prefix} ${masked}` : masked;
 }

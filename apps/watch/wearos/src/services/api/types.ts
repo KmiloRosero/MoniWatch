@@ -62,6 +62,8 @@ export interface PairingRequestResponse {
   userCode: string;
   deviceCode: string;
   expiresAt: string;
+  /** Relative lifetime: immune to a watch clock that is off from the server's. */
+  expiresInSeconds?: number;
   pollIntervalSeconds: number;
 }
 

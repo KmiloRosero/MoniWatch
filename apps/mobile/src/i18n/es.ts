@@ -40,7 +40,7 @@ export const copy = {
     addMerchant: 'Agregar comercio',
     merchantCode: (code: string) => `Código ${code}`,
     merchantCardCount: (count: number) =>
-      count === 0 ? 'Sin tarjeta: paga con Nequi o agrega una' : count === 1 ? '1 tarjeta' : `${count} tarjetas`,
+      count === 0 ? 'Sin tarjeta propia' : count === 1 ? '1 tarjeta' : `${count} tarjetas`,
     addCardFor: 'Agregar tarjeta',
     removeMerchant: 'Quitar',
     removeMerchantConfirmTitle: '¿Quitar este comercio?',
@@ -79,7 +79,7 @@ export const copy = {
     } as Record<string, string>,
     nequiTitle: 'Cuenta Nequi',
     forMerchant: (name: string) => `Para pagar a ${name}`,
-    anyMerchant: 'Sirve para cualquier comercio',
+    anyMerchant: 'Paga a cualquier comercio',
     cardTitle: (brand: string) => `Tarjeta ${brand}`,
     expires: (month: string, year: string) => `Vence ${month}/${year}`,
     defaultBadge: 'Predeterminado',

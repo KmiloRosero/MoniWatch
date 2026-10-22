@@ -82,7 +82,15 @@ export class DevicePairingService {
             expiresAt,
           },
         });
-        return { userCode, deviceCode, expiresAt, pollIntervalSeconds: this.pollIntervalSeconds };
+        // expiresInSeconds (RFC 8628 "expires_in") lets the watch count down on its own clock,
+        // which may be far off from the server's.
+        return {
+          userCode,
+          deviceCode,
+          expiresAt,
+          expiresInSeconds: Math.round(this.requestTtlMs / MS_PER_SECOND),
+          pollIntervalSeconds: this.pollIntervalSeconds,
+        };
       } catch (error) {
         // Astronomically rare user code collision: draw a new one.
         if (!isUniqueViolation(error) || attempt >= MAX_CODE_GENERATION_ATTEMPTS) throw error;

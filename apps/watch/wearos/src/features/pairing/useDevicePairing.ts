@@ -50,7 +50,11 @@ export function useDevicePairing() {
         const request = await createRequest(1);
         if (cancelled) return;
 
-        const expiresAt = Date.parse(request.expiresAt);
+        // Older servers only send the absolute time, which trusts the watch clock.
+        const expiresAt =
+          request.expiresInSeconds !== undefined
+            ? Date.now() + request.expiresInSeconds * MS_PER_SECOND
+            : Date.parse(request.expiresAt);
         let intervalMs = request.pollIntervalSeconds * MS_PER_SECOND;
         setState({ phase: 'waiting', userCode: request.userCode, expiresAt });
 
