@@ -7,19 +7,19 @@ import { WatchText } from '@/components/WatchText';
 import { copy } from '@/i18n/es';
 import { toUserMessage } from '@/services/api/error-messages';
 import { useUnpair } from '@/features/session/useUnpair';
-import { usePayablePaymentMethods } from '../hooks/useWatchData';
-import { methodDetail, providerColor, providerName } from '../presentation';
+import { usePayees, type Payee } from '../hooks/useWatchData';
+import { methodDetail } from '../presentation';
 
 type Props = NativeStackScreenProps<WatchStackParamList, 'Home'>;
 
 const t = copy.home;
 
 export function WatchHomeScreen({ navigation }: Props) {
-  const { methods, isPending, isError, error, refetch } = usePayablePaymentMethods();
+  const { payees, hasMerchants, isPending, isError, error, refetch } = usePayees();
   const unpair = useUnpair();
 
   if (isPending) {
-    return <StateView title={t.loadingMethods} loading />;
+    return <StateView title={t.loading} loading />;
   }
 
   if (isError) {
@@ -33,37 +33,46 @@ export function WatchHomeScreen({ navigation }: Props) {
     );
   }
 
-  if (methods.length === 0) {
+  if (payees.length === 0) {
     return (
       <StateView
-        title={t.emptyTitle}
-        description={t.emptyDescription}
+        title={hasMerchants ? t.noMethodsTitle : t.emptyTitle}
+        description={hasMerchants ? t.noMethodsDescription : t.emptyDescription}
         actionLabel={copy.common.retry}
         onAction={() => void refetch()}
       />
     );
   }
 
+  // One way to pay skips the method screen: merchant, then amount.
+  const choose = ({ merchant, methods }: Payee) => {
+    const payee = { merchantId: merchant.id, merchantName: merchant.name };
+    const [only] = methods;
+    if (methods.length === 1 && only) {
+      navigation.navigate('Amount', {
+        ...payee,
+        paymentMethodId: only.id,
+        provider: only.provider,
+        methodDetail: methodDetail(only),
+      });
+    } else {
+      navigation.navigate('Method', payee);
+    }
+  };
+
   return (
     <WatchScreen>
       <WatchText variant="caption" tone="secondary" center accessibilityRole="header">
         {t.title}
       </WatchText>
-      {methods.map((method) => {
-        const detail = methodDetail(method);
+      {payees.map((payee) => {
+        const [best] = payee.methods;
         return (
           <Chip
-            key={method.id}
-            label={t.payWith(providerName(method.provider))}
-            secondaryLabel={detail}
-            accentColor={providerColor(method.provider)}
-            onPress={() =>
-              navigation.navigate('Amount', {
-                paymentMethodId: method.id,
-                provider: method.provider,
-                methodDetail: detail,
-              })
-            }
+            key={payee.merchant.id}
+            label={payee.merchant.name}
+            secondaryLabel={payee.methods.length === 1 && best ? methodDetail(best) : t.methodCount(payee.methods.length)}
+            onPress={() => choose(payee)}
           />
         );
       })}

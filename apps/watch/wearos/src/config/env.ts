@@ -13,17 +13,6 @@ function positiveInteger(name: string, value: string | undefined): number {
   return parsed;
 }
 
-/** "10000,20000,50000" -> [10000, 20000, 50000] (major currency units). */
-function parseQuickAmounts(value: string | undefined): number[] {
-  const amounts = required('EXPO_PUBLIC_QUICK_AMOUNTS', value)
-    .split(',')
-    .map((part) => Number(part.trim()));
-  if (amounts.length === 0 || amounts.some((amount) => !Number.isInteger(amount) || amount <= 0)) {
-    throw new Error('EXPO_PUBLIC_QUICK_AMOUNTS must be a comma-separated list of positive integers');
-  }
-  return amounts;
-}
-
 // Expo only inlines EXPO_PUBLIC_* variables accessed with static dot notation.
 export const env = {
   apiUrl: required('EXPO_PUBLIC_API_URL', process.env.EXPO_PUBLIC_API_URL).replace(/\/+$/, ''),
@@ -34,7 +23,6 @@ export const env = {
     'EXPO_PUBLIC_CURRENCY_MINOR_UNITS_PER_MAJOR',
     process.env.EXPO_PUBLIC_CURRENCY_MINOR_UNITS_PER_MAJOR,
   ),
-  quickAmounts: parseQuickAmounts(process.env.EXPO_PUBLIC_QUICK_AMOUNTS),
   /** Largest amount (major units) the keypad accepts before the device limit applies. */
   maxKeypadAmount: positiveInteger('EXPO_PUBLIC_MAX_KEYPAD_AMOUNT', process.env.EXPO_PUBLIC_MAX_KEYPAD_AMOUNT),
 } as const;

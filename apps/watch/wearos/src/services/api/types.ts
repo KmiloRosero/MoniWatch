@@ -14,6 +14,15 @@ export type TransactionStatus =
   | 'REFUNDED';
 export type DevicePlatform = 'WEAR_OS' | 'WATCH_OS';
 
+/** A business the user added on the phone; the watch pays it. */
+export interface Merchant {
+  id: string;
+  name: string;
+  code: string;
+  category: string | null;
+  logoUrl: string | null;
+}
+
 export interface PaymentMethod {
   id: string;
   provider: PaymentProvider;
@@ -26,6 +35,8 @@ export interface PaymentMethod {
   cardBrand: string | null;
   maskedPhoneNumber: string | null;
   createdAt: string;
+  /** Cards can only pay the merchant they were linked for; wallets (null) pay any. */
+  merchant: { id: string; name: string; code: string } | null;
 }
 
 export interface DeviceSettings {
@@ -77,11 +88,13 @@ export interface Transaction {
   createdAt: string;
   approvedAt: string | null;
   paymentMethod: { id: string; provider: PaymentProvider; type: PaymentMethodType; displayLabel: string };
+  merchant: { id: string; name: string } | null;
 }
 
 export interface CreateTransactionRequest {
   idempotencyKey: string;
   paymentMethodId: string;
+  merchantId: string;
   amountInCents: number;
   currency: string;
   paymentPin?: string;

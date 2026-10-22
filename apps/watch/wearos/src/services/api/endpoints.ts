@@ -3,6 +3,7 @@ import type {
   CreatePairingRequest,
   CreateTransactionRequest,
   DeviceSettings,
+  Merchant,
   PairingPollResponse,
   PairingRequestResponse,
   PaymentMethod,
@@ -43,6 +44,13 @@ export const paymentMethodsApi = {
   },
 };
 
+export const merchantsApi = {
+  /** Payees added on the phone. */
+  saved() {
+    return apiRequest<Merchant[]>('/merchants/saved');
+  },
+};
+
 export const transactionsApi = {
   create(body: CreateTransactionRequest) {
     return apiRequest<Transaction>('/transactions', { method: 'POST', body });
@@ -56,4 +64,5 @@ export const transactionsApi = {
 export const queryKeys = {
   paymentMethods: ['payment-methods'] as const,
   deviceSettings: ['devices', 'me'] as const,
+  savedMerchants: ['merchants', 'saved'] as const,
 };

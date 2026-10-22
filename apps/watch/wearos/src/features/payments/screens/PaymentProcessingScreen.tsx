@@ -22,8 +22,8 @@ const SUCCESS_AUTO_DISMISS_MS = 6_000;
 const t = copy.processing;
 
 export function PaymentProcessingScreen({ navigation, route }: Props) {
-  const { paymentMethodId, provider, amountInCents, paymentPin } = route.params;
-  const { state, retry } = usePaymentFlow({ paymentMethodId, amountInCents, paymentPin });
+  const { merchantId, merchantName, paymentMethodId, provider, amountInCents, paymentPin } = route.params;
+  const { state, retry } = usePaymentFlow({ merchantId, paymentMethodId, amountInCents, paymentPin });
 
   const isBusy = state.phase === 'processing' || state.phase === 'confirming';
   // Swipe-to-dismiss and the back button are ignored while the charge is in flight.
@@ -49,7 +49,7 @@ export function PaymentProcessingScreen({ navigation, route }: Props) {
           {confirming ? t.confirmingTitle : t.loadingTitle}
         </WatchText>
         <WatchText variant="caption" tone="secondary" center>
-          {confirming ? t.confirmingDescription : t.loadingDescription(providerLabel)}
+          {confirming ? t.confirmingDescription : t.loadingDescription(merchantName)}
         </WatchText>
         <WatchText variant="amountSmall" tone="tertiary" center numberOfLines={1} adjustsFontSizeToFit>
           {amountLabel}
@@ -65,7 +65,7 @@ export function PaymentProcessingScreen({ navigation, route }: Props) {
         style={styles.fill}
         onPress={finish}
         accessibilityRole="button"
-        accessibilityLabel={`${t.successTitle}, ${formatMoney(toMajorUnits(state.transaction.amountInCents))}`}
+        accessibilityLabel={`${t.paidTo(merchantName)}, ${formatMoney(toMajorUnits(state.transaction.amountInCents))}`}
         accessibilityHint={t.successDismissHint}
       >
         <WatchScreen centered>
@@ -73,8 +73,8 @@ export function PaymentProcessingScreen({ navigation, route }: Props) {
           <WatchText variant="amountSmall" center numberOfLines={1} adjustsFontSizeToFit>
             {formatMoney(toMajorUnits(state.transaction.amountInCents))}
           </WatchText>
-          <WatchText variant="caption" tone="success" center accessibilityLiveRegion="assertive">
-            {t.successTitle}
+          <WatchText variant="caption" tone="success" center numberOfLines={1} accessibilityLiveRegion="assertive">
+            {t.paidTo(merchantName)}
           </WatchText>
         </WatchScreen>
       </Pressable>

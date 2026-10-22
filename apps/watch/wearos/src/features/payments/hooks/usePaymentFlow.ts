@@ -9,6 +9,7 @@ import type { Transaction, TransactionStatus } from '@/services/api/types';
 import { haptics } from '@/services/haptics';
 
 export interface PaymentInput {
+  merchantId: string;
   paymentMethodId: string;
   amountInCents: number;
   paymentPin?: string;
@@ -38,7 +39,7 @@ export function usePaymentFlow(input: PaymentInput) {
   const idempotencyKey = useRef(Crypto.randomUUID());
   const [state, setState] = useState<PaymentState>({ phase: 'processing' });
   const [attempt, setAttempt] = useState(0);
-  const { paymentMethodId, amountInCents, paymentPin } = input;
+  const { merchantId, paymentMethodId, amountInCents, paymentPin } = input;
 
   useEffect(() => {
     let cancelled = false;
@@ -82,6 +83,7 @@ export function usePaymentFlow(input: PaymentInput) {
       try {
         const transaction = await transactionsApi.create({
           idempotencyKey: idempotencyKey.current,
+          merchantId,
           paymentMethodId,
           amountInCents,
           currency: env.currency,
@@ -102,7 +104,7 @@ export function usePaymentFlow(input: PaymentInput) {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [attempt, paymentMethodId, amountInCents, paymentPin, queryClient]);
+  }, [attempt, merchantId, paymentMethodId, amountInCents, paymentPin, queryClient]);
 
   const retry = useCallback(() => {
     // A definitive rejection means a new payment attempt; unknown outcomes reuse the key.

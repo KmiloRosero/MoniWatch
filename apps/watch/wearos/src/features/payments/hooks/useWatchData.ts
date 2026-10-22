@@ -1,6 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { devicesApi, paymentMethodsApi, queryKeys } from '@/services/api/endpoints';
-import type { DeviceSettings, PaymentMethod } from '@/services/api/types';
+import { devicesApi, merchantsApi, paymentMethodsApi, queryKeys } from '@/services/api/endpoints';
+import type { DeviceSettings, Merchant, PaymentMethod } from '@/services/api/types';
+
+/** A merchant the watch can pay right now, with the methods that can pay it (best first). */
+export interface Payee {
+  merchant: Merchant;
+  methods: PaymentMethod[];
+}
 
 export function useDeviceSettings() {
   return useQuery({
@@ -20,18 +26,31 @@ function sortForWatch(methods: PaymentMethod[], settings: DeviceSettings | undef
     .map(({ method }) => method);
 }
 
-export function usePayablePaymentMethods() {
+/** A card pays only its own merchant; a wallet pays any merchant. */
+function canPay(method: PaymentMethod, merchantId: string): boolean {
+  return method.merchant === null || method.merchant.id === merchantId;
+}
+
+/**
+ * Merchants added on the phone that have at least one way to pay them.
+ * hasMerchants tells an empty list apart: no merchants at all vs. merchants without methods.
+ */
+export function usePayees() {
   const settings = useDeviceSettings();
-  const methods = useQuery({
-    queryKey: queryKeys.paymentMethods,
-    queryFn: paymentMethodsApi.list,
-  });
+  const methods = useQuery({ queryKey: queryKeys.paymentMethods, queryFn: paymentMethodsApi.list });
+  const merchants = useQuery({ queryKey: queryKeys.savedMerchants, queryFn: merchantsApi.saved });
+
+  const sorted = methods.data ? sortForWatch(methods.data, settings.data) : [];
+  const payees: Payee[] = (merchants.data ?? [])
+    .map((merchant) => ({ merchant, methods: sorted.filter((method) => canPay(method, merchant.id)) }))
+    .filter((payee) => payee.methods.length > 0);
 
   return {
-    methods: methods.data ? sortForWatch(methods.data, settings.data) : [],
-    isPending: methods.isPending,
-    isError: methods.isError,
-    error: methods.error,
-    refetch: () => Promise.all([methods.refetch(), settings.refetch()]),
+    payees,
+    hasMerchants: (merchants.data?.length ?? 0) > 0,
+    isPending: methods.isPending || merchants.isPending,
+    isError: methods.isError || merchants.isError,
+    error: methods.error ?? merchants.error,
+    refetch: () => Promise.all([methods.refetch(), merchants.refetch(), settings.refetch()]),
   };
 }
