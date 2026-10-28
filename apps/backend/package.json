@@ -61,5 +61,8 @@
     "globalSetup": "<rootDir>/test/global-setup.ts",
     "testTimeout": 30000,
     "globalTeardown": "<rootDir>/test/global-teardown.ts"
+  },
+  "overrides": {
+    "multer": "2.5.0"
   }
 }
