@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MerchantStatus, WompiEnvironment } from '@prisma/client';
+import { timingSafeEqual } from 'crypto';
 import { EnvironmentVariables } from '../../config/env.validation';
 import { TokenVaultService } from '../../infrastructure/crypto/token-vault.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
@@ -107,6 +108,48 @@ export class MerchantAccountsService {
     };
   }
 
+  /** True when the merchant's stored Wompi keys (any status) are exactly these. Compared in constant time. */
+  async matchesStoredKeys(merchantId: string, keys: WompiKeys): Promise<boolean> {
+    const merchant = await this.prisma.merchant.findUnique({
+      where: { id: merchantId },
+      select: {
+        wompiPublicKey: true,
+        wompiSecrets: true,
+        wompiSecretsIv: true,
+        wompiSecretsAuthTag: true,
+        wompiSecretsKeyId: true,
+      },
+    });
+    if (
+      !merchant?.wompiPublicKey ||
+      !merchant.wompiSecrets ||
+      !merchant.wompiSecretsIv ||
+      !merchant.wompiSecretsAuthTag ||
+      !merchant.wompiSecretsKeyId
+    ) {
+      return false;
+    }
+
+    try {
+      const stored = JSON.parse(
+        this.vault.decrypt({
+          ciphertext: merchant.wompiSecrets,
+          iv: merchant.wompiSecretsIv,
+          authTag: merchant.wompiSecretsAuthTag,
+          keyId: merchant.wompiSecretsKeyId,
+        }),
+      ) as StoredWompiSecrets;
+      return (
+        safeEqual(merchant.wompiPublicKey, keys.publicKey) &&
+        safeEqual(stored.privateKey, keys.privateKey) &&
+        safeEqual(stored.integritySecret, keys.integritySecret) &&
+        safeEqual(stored.eventsSecret, keys.eventsSecret)
+      );
+    } catch {
+      return false;
+    }
+  }
+
   /** Decrypted account of an active merchant, or null when it has no usable Wompi account. */
   async load(merchantId: string): Promise<MerchantGatewayAccount | null> {
     const merchant = await this.prisma.merchant.findFirst({
@@ -152,4 +195,10 @@ export class MerchantAccountsService {
       return null;
     }
   }
+}
+
+function safeEqual(a: string, b: string): boolean {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  return left.length === right.length && timingSafeEqual(left, right);
 }

@@ -56,6 +56,14 @@ export class MerchantsService {
       throw new UnprocessableEntityException('The Wompi account is not active');
     }
 
+    const existing = await this.prisma.merchant.findUnique({
+      where: { wompiPublicKey: keys.publicKey },
+      select: { id: true, ownerUserId: true },
+    });
+    if (existing) {
+      return this.claim(existing, ownerUserId, keys, dto);
+    }
+
     const name = dto.name ?? info?.name;
     if (!name) {
       throw new BadRequestException('name is required');
@@ -67,6 +75,34 @@ export class MerchantsService {
       ownerUserId,
       status: MerchantStatus.ACTIVE,
       ...this.accounts.encrypt(keys),
+    });
+  }
+
+  /**
+   * The Wompi account is already registered. Its owner may re-submit it (idempotent), and a
+   * merchant without owner (bootstrapped from server keys) is handed to whoever proves they
+   * hold all four secrets. Anyone else gets a conflict.
+   */
+  private async claim(
+    existing: { id: string; ownerUserId: string | null },
+    ownerUserId: string,
+    keys: WompiKeys,
+    dto: RegisterMerchantDto,
+  ) {
+    const claimable = existing.ownerUserId === null || existing.ownerUserId === ownerUserId;
+    if (!claimable || !(await this.accounts.matchesStoredKeys(existing.id, keys))) {
+      throw new ConflictException('This Wompi account is already registered');
+    }
+
+    return this.prisma.merchant.update({
+      where: { id: existing.id },
+      data: {
+        ownerUserId,
+        status: MerchantStatus.ACTIVE,
+        ...(dto.name ? { name: dto.name } : {}),
+        ...(dto.category ? { category: dto.category } : {}),
+      },
+      select: merchantOwnerSelect,
     });
   }
 

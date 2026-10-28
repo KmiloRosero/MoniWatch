@@ -191,7 +191,8 @@ export const copy = {
       required: 'Este campo es obligatorio.',
       invalidKeys:
         'Wompi no aceptó estas llaves. Copia completas las cuatro de Producción o las cuatro de Pruebas, sin mezclarlas.',
-      alreadyRegistered: 'Esta cuenta de Wompi ya está conectada a MoniWatch.',
+      alreadyRegistered:
+        'Esta cuenta de Wompi ya está conectada a MoniWatch con otro usuario, o alguna llave no coincide con la registrada.',
       inactive: 'Wompi dice que esta cuenta no está activa.',
       unavailable: 'No pudimos verificar tus llaves con Wompi. Intenta de nuevo en un momento.',
       deactivate: 'No pudimos desactivar tu comercio. Intenta de nuevo.',

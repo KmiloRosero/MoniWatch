@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../src/infrastructure/prisma/prisma.service';
+import { MerchantAccountsService } from '../src/modules/merchants/merchant-accounts.service';
 import {
   addNequi,
   api,
@@ -55,14 +56,46 @@ describe('Merchants: own Wompi accounts, payees and paying them from the watch',
       expect(mine.body.map((merchant: { id: string }) => merchant.id)).toEqual([response.body.id]);
     });
 
-    it('rejects keys from mixed environments and accounts registered twice', async () => {
+    it('rejects keys from mixed environments and accounts that belong to someone else', async () => {
       const owner = await registerUser(client);
+      const stranger = await registerUser(client);
       const keys = wompiTestKeys();
       await client
         .post('/merchants', { name: 'Mixta', ...keys, wompiPrivateKey: keys.wompiPrivateKey.replace('prv_test_', 'prv_prod_') }, owner.accessToken)
         .expect(400);
-      await client.post('/merchants', { name: 'Uno', ...keys }, owner.accessToken).expect(201);
-      await client.post('/merchants', { name: 'Dos', ...keys }, owner.accessToken).expect(409);
+      const first = await client.post('/merchants', { name: 'Uno', ...keys }, owner.accessToken).expect(201);
+      // The owner re-submitting the same account gets the same merchant back.
+      const again = await client.post('/merchants', { name: 'Uno', ...keys }, owner.accessToken).expect(201);
+      expect(again.body.id).toBe(first.body.id);
+      await client.post('/merchants', { name: 'Dos', ...keys }, stranger.accessToken).expect(409);
+    });
+
+    it('hands a merchant registered from server keys to whoever proves all four secrets', async () => {
+      const keys = wompiTestKeys();
+      const accounts = app.get(MerchantAccountsService);
+      const platform = await prisma.merchant.create({
+        data: {
+          name: 'Merca Justo',
+          code: randomUUID().slice(0, 6).toUpperCase(),
+          ownerUserId: null,
+          ...accounts.encrypt({
+            publicKey: keys.wompiPublicKey,
+            privateKey: keys.wompiPrivateKey,
+            integritySecret: keys.wompiIntegritySecret,
+            eventsSecret: keys.wompiEventsSecret,
+          }),
+        },
+      });
+      const owner = await registerUser(client);
+
+      await client
+        .post('/merchants', { ...keys, wompiEventsSecret: `test_events_${randomUUID().replace(/-/g, '')}` }, owner.accessToken)
+        .expect(409);
+      const claimed = await client.post('/merchants', keys, owner.accessToken).expect(201);
+      expect(claimed.body).toMatchObject({ id: platform.id, name: 'Merca Justo', code: platform.code });
+
+      const mine = await client.get('/merchants/mine', owner.accessToken).expect(200);
+      expect(mine.body.map((merchant: { id: string }) => merchant.id)).toEqual([platform.id]);
     });
 
     it('only lets the owner deactivate, and inactive merchants disappear from search', async () => {
