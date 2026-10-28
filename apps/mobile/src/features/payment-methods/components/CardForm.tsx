@@ -25,6 +25,8 @@ import { MerchantPicker } from './MerchantPicker';
 import { WompiAcceptance } from './WompiAcceptance';
 
 const t = copy.addPaymentMethod;
+/** Wompi rejects card tokens whose holder name is shorter than this. */
+const MIN_HOLDER_LENGTH = 5;
 
 interface CardFormValues {
   numberDigits: string;
@@ -38,7 +40,11 @@ function validate(values: CardFormValues) {
   const expiry = parseExpiry(values.expiry);
   return {
     number: isValidLuhn(values.numberDigits) ? null : t.errors.cardNumberInvalid,
-    holder: values.holder.trim() ? null : t.errors.holderRequired,
+    holder: !values.holder.trim()
+      ? t.errors.holderRequired
+      : values.holder.trim().length < MIN_HOLDER_LENGTH
+        ? t.errors.holderTooShort
+        : null,
     expiry: !expiry ? t.errors.expiryInvalid : !isExpiryInFuture(expiry.month, expiry.year) ? t.errors.expiryPast : null,
     cvc: values.cvc.length === cvcLength(brand) ? null : t.errors.cvcInvalid,
   };

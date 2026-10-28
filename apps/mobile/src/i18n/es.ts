@@ -132,6 +132,7 @@ export const copy = {
       phoneInvalid: 'Ingresa un celular de 10 dígitos que empiece por 3.',
       cardNumberInvalid: 'Revisa el número de tarjeta.',
       holderRequired: 'Ingresa el nombre del titular.',
+      holderTooShort: 'Escribe el nombre completo, como aparece en la tarjeta.',
       expiryInvalid: 'Usa el formato MM/AA.',
       expiryPast: 'Esta tarjeta ya está vencida.',
       cvcInvalid: 'Revisa el código de seguridad.',
