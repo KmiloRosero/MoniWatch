@@ -11,6 +11,8 @@ export interface PaymentDraft extends PayeeRef {
   paymentMethodId: string;
   provider: PaymentProvider;
   methodDetail: string;
+  /** From the backend: amounts below it are refused by the provider. */
+  minAmountInCents: number | null;
 }
 
 export type ChargeDraft = PaymentDraft & { amountInCents: number };

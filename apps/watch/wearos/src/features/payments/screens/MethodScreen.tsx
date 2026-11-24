@@ -55,6 +55,7 @@ export function MethodScreen({ navigation, route }: Props) {
                 paymentMethodId: method.id,
                 provider: method.provider,
                 methodDetail: detail,
+                minAmountInCents: method.minAmountInCents ?? null,
               })
             }
           />

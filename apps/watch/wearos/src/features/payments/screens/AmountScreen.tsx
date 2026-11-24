@@ -33,7 +33,10 @@ export function AmountScreen({ navigation, route }: Props) {
     settings.data?.maxAmountPerTransaction != null ? toMajorUnits(settings.data.maxAmountPerTransaction) : null;
   const effectiveLimit = Math.min(env.maxKeypadAmount, deviceLimit ?? Number.POSITIVE_INFINITY);
   const isOverLimit = amount > effectiveLimit;
-  const canContinue = amount > 0 && !isOverLimit;
+  const minimum = draft.minAmountInCents !== null ? toMajorUnits(draft.minAmountInCents) : null;
+  // Shown only once something is typed, so the empty screen stays calm.
+  const isUnderMinimum = minimum !== null && amount > 0 && amount < minimum;
+  const canContinue = amount > 0 && !isOverLimit && !isUnderMinimum;
   const formattedAmount = formatMoney(amount);
 
   const appendDigits = (digits: string) =>
@@ -70,6 +73,10 @@ export function AmountScreen({ navigation, route }: Props) {
       {isOverLimit ? (
         <WatchText variant="caption" tone="danger" center>
           {limitHint}
+        </WatchText>
+      ) : isUnderMinimum && minimum !== null ? (
+        <WatchText variant="caption" tone="danger" center accessibilityLiveRegion="polite">
+          {t.underMinimum(formatMoney(minimum))}
         </WatchText>
       ) : null}
 

@@ -60,6 +60,7 @@ export const copy = {
     enterAmount: 'Ingresa un monto',
     overDeviceLimit: (limit: string) => `Máximo ${limit} por pago`,
     overKeypadLimit: (limit: string) => `Máximo ${limit}`,
+    underMinimum: (minimum: string) => `Mínimo ${minimum} con este medio`,
   },
   confirm: {
     heading: 'Confirma tu pago',

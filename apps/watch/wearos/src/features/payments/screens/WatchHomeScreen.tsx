@@ -54,6 +54,7 @@ export function WatchHomeScreen({ navigation }: Props) {
         paymentMethodId: only.id,
         provider: only.provider,
         methodDetail: methodDetail(only),
+        minAmountInCents: only.minAmountInCents ?? null,
       });
     } else {
       navigation.navigate('Method', payee);

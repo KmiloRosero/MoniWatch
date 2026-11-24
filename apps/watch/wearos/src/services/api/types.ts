@@ -37,6 +37,8 @@ export interface PaymentMethod {
   createdAt: string;
   /** Cards can only pay the merchant they were linked for; wallets (null) pay any. */
   merchant: { id: string; name: string; code: string } | null;
+  /** Smallest amount the provider accepts (Wompi: COP 1.500); null when there is none. */
+  minAmountInCents?: number | null;
 }
 
 export interface DeviceSettings {
