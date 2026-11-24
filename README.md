@@ -12,6 +12,36 @@ Paga desde la muñeca con **Nequi** o con **tarjeta (Wompi)**. El celular config
 - El código, los nombres y los comentarios están en inglés. La interfaz está 100% en español (`src/i18n/es.ts` en cada app).
 - No hay datos quemados: todo viene del backend o de variables de entorno.
 
+## Descargar las apps
+
+Las apps listas para instalar están en **[Releases](https://github.com/KmiloRosero/MoniWatch/releases/latest)**:
+
+| Archivo | Dónde se instala |
+| --- | --- |
+| `MoniWatch-celular.apk` | Celular Android (Android 7 o superior) |
+| `MoniWatch-reloj.apk` | Reloj con **Wear OS** |
+
+Ambas se conectan al servidor publicado (`https://moniwatch-api.onrender.com`) y cobran con **Wompi en producción**:
+los pagos son reales. Wompi acepta pagos con tarjeta desde **$1.500**.
+
+**Celular:** descarga el APK en el celular, ábrelo y permite *instalar apps desconocidas*.
+
+**Reloj:** en el reloj activa *Opciones de desarrollador → Depuración ADB* y *Depuración por Wi-Fi*; luego, desde el PC:
+
+```bash
+adb connect <ip-del-reloj>:<puerto>
+adb install MoniWatch-reloj.apk
+```
+
+**Primer pago:** en el celular crea tu cuenta → *Agregar comercio* (por nombre o código) → agrega tu tarjeta para ese
+comercio → *Ajustes › Mis relojes › Vincular reloj* con el código que muestra el reloj. En el reloj: elige el comercio,
+escribe el monto, confirma y paga. El dinero llega a la cuenta Wompi del comercio.
+
+**¿Tienes un negocio?** En *Ajustes › Mi comercio* conecta las 4 llaves de tu cuenta Wompi y recibe un código para que
+tus clientes te paguen.
+
+> El servidor gratuito se duerme tras 15 minutos sin uso: la primera acción puede tardar unos 50 segundos.
+
 ---
 
 ## Cómo funciona
