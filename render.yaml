@@ -85,6 +85,8 @@ services:
         sync: false
       - key: WOMPI_EVENTS_SECRET
         sync: false
+      - key: WOMPI_MIN_AMOUNT_IN_CENTS
+        value: '150000'
       - key: WOMPI_STATUS_POLL_ATTEMPTS
         value: '6'
       - key: WOMPI_STATUS_POLL_INTERVAL_MS

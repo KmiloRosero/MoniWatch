@@ -161,6 +161,11 @@ export class EnvironmentVariables {
   @Min(200)
   WOMPI_STATUS_POLL_INTERVAL_MS: number;
 
+  /** Smallest card charge Wompi accepts (COP 1.500 = 150000 cents). Smaller amounts are refused before charging. */
+  @IsInt()
+  @Min(0)
+  WOMPI_MIN_AMOUNT_IN_CENTS: number;
+
   /** Length of the public code payers type to find a merchant. */
   @IsInt()
   @Min(4)
@@ -197,6 +202,7 @@ const ENVIRONMENT_DEFAULTS: Partial<Record<keyof EnvironmentVariables, string>> 
   WOMPI_SANDBOX_API_URL: 'https://sandbox.wompi.co/v1',
   WOMPI_PRODUCTION_API_URL: 'https://production.wompi.co/v1',
   MERCHANT_CODE_LENGTH: '6',
+  WOMPI_MIN_AMOUNT_IN_CENTS: '150000',
 };
 
 export function validateEnvironment(config: Record<string, unknown>): EnvironmentVariables {

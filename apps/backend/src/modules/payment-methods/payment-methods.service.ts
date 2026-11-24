@@ -140,12 +140,17 @@ export class PaymentMethodsService {
     return account;
   }
 
-  findAllForUser(userId: string) {
-    return this.prisma.paymentMethod.findMany({
+  /** Each method carries its provider's minimum so the watch can stop a too-small amount before paying. */
+  async findAllForUser(userId: string) {
+    const methods = await this.prisma.paymentMethod.findMany({
       where: { userId, status: { not: PaymentMethodStatus.REVOKED } },
       select: paymentMethodPublicSelect,
       orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
     });
+    return methods.map((method) => ({
+      ...method,
+      minAmountInCents: this.providers.get(method.provider).minAmountInCents,
+    }));
   }
 
   async findOneForUser(userId: string, id: string) {

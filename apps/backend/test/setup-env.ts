@@ -25,6 +25,7 @@ Object.assign(process.env, {
   WOMPI_MODE: 'SIMULATED',
   WOMPI_STATUS_POLL_ATTEMPTS: '0',
   WOMPI_STATUS_POLL_INTERVAL_MS: '200',
+  WOMPI_MIN_AMOUNT_IN_CENTS: '150000',
   // Deterministic: every charge is approved unless a test forces a decline.
   PAYMENT_SIMULATOR_APPROVAL_RATE: '1',
   PAYMENT_SIMULATOR_LATENCY_MS: '0',

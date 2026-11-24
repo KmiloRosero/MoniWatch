@@ -35,6 +35,7 @@ export class WompiProvider implements PaymentProviderAdapter {
   private readonly mode: ProviderMode;
   private readonly pollAttempts: number;
   private readonly pollIntervalMs: number;
+  readonly minAmountInCents: number;
 
   constructor(
     private readonly simulator: PaymentGatewaySimulator,
@@ -44,6 +45,7 @@ export class WompiProvider implements PaymentProviderAdapter {
     this.mode = config.get('WOMPI_MODE', { infer: true });
     this.pollAttempts = config.get('WOMPI_STATUS_POLL_ATTEMPTS', { infer: true });
     this.pollIntervalMs = config.get('WOMPI_STATUS_POLL_INTERVAL_MS', { infer: true });
+    this.minAmountInCents = config.get('WOMPI_MIN_AMOUNT_IN_CENTS', { infer: true });
   }
 
   private get isLive(): boolean {

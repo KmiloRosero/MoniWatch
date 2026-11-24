@@ -18,6 +18,7 @@ import {
 export class NequiProvider implements PaymentProviderAdapter {
   readonly provider = PaymentProvider.NEQUI;
   readonly supportedMethodTypes: readonly PaymentMethodType[] = [PaymentMethodType.WALLET];
+  readonly minAmountInCents = null;
   private readonly mode: ProviderMode;
 
   constructor(

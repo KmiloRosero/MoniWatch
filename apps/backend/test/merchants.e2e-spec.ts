@@ -166,6 +166,22 @@ describe('Merchants: own Wompi accounts, payees and paying them from the watch',
         .expect(422);
     });
 
+    it("refuses card amounts below Wompi's minimum before charging, and tells the watch the minimum", async () => {
+      const merchant = await registerMerchant(client, (await registerUser(client)).accessToken);
+      const payer = await registerUser(client);
+      const card = (await client.post('/payment-methods', cardFor(merchant.id), payer.accessToken).expect(201)).body;
+      const watch = await pairWatch(client, payer.accessToken);
+
+      const methods = await client.get('/payment-methods', watch.accessToken).expect(200);
+      expect(methods.body.find((method: { id: string }) => method.id === card.id)).toMatchObject({ minAmountInCents: 150_000 });
+
+      await client
+        .post('/transactions', { idempotencyKey: randomUUID(), paymentMethodId: card.id, merchantId: merchant.id, amountInCents: 10_000, currency: 'COP' }, watch.accessToken)
+        .expect(422);
+      const history = await client.get('/transactions', payer.accessToken).expect(200);
+      expect(history.body.items).toEqual([]);
+    });
+
     it('lets a wallet pay any merchant and records who was paid', async () => {
       const merchant = await registerMerchant(client, (await registerUser(client)).accessToken, 'Frutería');
       const payer = await registerUser(client);

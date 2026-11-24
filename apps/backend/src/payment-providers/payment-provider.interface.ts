@@ -98,6 +98,8 @@ export interface CheckoutConfig {
 export interface PaymentProviderAdapter {
   readonly provider: PaymentProvider;
   readonly supportedMethodTypes: readonly PaymentMethodType[];
+  /** Smallest amount the provider accepts, or null when it has no minimum. */
+  readonly minAmountInCents: number | null;
   createPaymentSource(input: CreatePaymentSourceInput): Promise<PaymentSourceResult>;
   charge(input: ChargeInput): Promise<ChargeResult>;
   /** Asks the provider for the current state of a charge (reconciliation). */

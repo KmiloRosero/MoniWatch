@@ -114,6 +114,12 @@ export class TransactionsService {
       dto.paymentMethodId ?? device?.defaultPaymentMethodId ?? null,
     );
 
+    // Refused before charging: the provider would reject it anyway, and nothing is recorded.
+    const minAmountInCents = this.providers.get(paymentMethod.provider).minAmountInCents;
+    if (minAmountInCents !== null && dto.amountInCents < minAmountInCents) {
+      throw new UnprocessableEntityException(`Amount is below the minimum of ${minAmountInCents} cents for this payment method`);
+    }
+
     const merchantId = this.resolveMerchantId(paymentMethod, dto);
     if (merchantId) {
       await this.assertMerchantActive(merchantId);
